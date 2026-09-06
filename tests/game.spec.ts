@@ -31,8 +31,8 @@ test("loads, drives, resets, changes vehicles, travels and shoots", async ({ pag
   await expect(page.locator(".current-vehicle")).toContainText("Highland 110");
   await page.getByRole("button", { name: "Map", exact: true }).click();
   await expect(page.locator(".district-list button")).toHaveCount(14);
-  await page.getByRole("button", { name: /Wayanad Highland escape/ }).click();
-  await expect(page.locator(".location-tag h2")).toHaveText("Wayanad");
+  await page.getByRole("button", { name: /Mistvale Highland escape/ }).click();
+  await expect(page.locator(".location-tag h2")).toHaveText("Mistvale");
   await page.getByRole("button", { name: "Loadout", exact: true }).click();
   await page.getByRole("button", { name: /Carbine/ }).click();
   await page.getByRole("button", { name: "Head out on foot" }).click();

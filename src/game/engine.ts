@@ -26,7 +26,7 @@ export function createGame(
   const canvas = renderer.domElement;
   canvas.style.cssText = "display:block;width:100%;height:100%;position:absolute;inset:0;touch-action:none;outline:none;";
   canvas.tabIndex = 0;
-  canvas.setAttribute("aria-label", "Kerala free roam. WASD to move and steer, Q/Z ascend/descend, Space brake, Shift boost, E enter/exit transport, G enter/exit home, F fire outdoors. Drag to aim on foot.");
+  canvas.setAttribute("aria-label", "Solmere free roam. WASD to move and steer, Q/Z ascend/descend, Space brake, Shift boost, E enter/exit transport, G enter/exit home, F fire outdoors. Drag to aim on foot.");
   container.appendChild(canvas);
 
   const geometries = new Set<THREE.BufferGeometry>();
@@ -515,7 +515,7 @@ export function createGame(
     context.strokeRect(12, 12, 744, 232);
     context.fillStyle = "#e8bb70";
     context.font = "600 23px sans-serif";
-    context.fillText("KERALA / FREE ROAM", 36, 54);
+    context.fillText("SOLMERE / FREE ROAM", 36, 54);
     context.fillStyle = "#fff6df";
     context.font = `600 ${text.length > 15 ? 44 : 58}px sans-serif`;
     context.fillText(text.toUpperCase(), 34, 135, 698);

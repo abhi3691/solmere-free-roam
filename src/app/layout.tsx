@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Kerala Free Roam | Take the scenic route",
-  description: "Explore a stylized Kerala in a playable 3D driving sandbox. Coastal roads, five original vehicles, and fourteen district destinations.",
+  title: "Solmere Free Roam | Take the scenic route",
+  description: "Explore a fictional coastal state in a playable 3D driving sandbox. Coastal roads, five original vehicles, and fourteen province destinations.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

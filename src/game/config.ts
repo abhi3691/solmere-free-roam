@@ -6,23 +6,22 @@ export const VEHICLES = [
   { id: "defender", name: "Highland 110", inspiration: "Defender-inspired adventure SUV", type: "ADVENTURE SUV", color: "#91a58a", speed: 170, handling: 80, shape: "offroad" },
 ] as const;
 
-// Compressed district destinations, not surveyed coordinates or district boundaries.
-// hq/area/about are real reference facts about each district (approximate, for flavor, not survey-grade).
+// Fictional province destinations for a fictional coastal state. Not modeled on any real place.
 export const DISTRICTS = [
-  { name: "Kasaragod", x: -90, z: -850, label: "Northern coast", hq: "Kasaragod", area: 1992, about: "Bekal Fort and a multilingual coastline" },
-  { name: "Kannur", x: -60, z: -710, label: "Palm coast", hq: "Kannur", area: 2966, about: "Theyyam ritual art and handloom weaving" },
-  { name: "Wayanad", x: 95, z: -620, label: "Highland escape", hq: "Kalpetta", area: 2131, about: "Western Ghats forests and spice plantations" },
-  { name: "Kozhikode", x: -35, z: -540, label: "Malabar coast", hq: "Kozhikode", area: 2344, about: "Historic Malabar spice-trade port" },
-  { name: "Malappuram", x: 20, z: -390, label: "Green country", hq: "Malappuram", area: 3550, about: "Kerala's most populous district" },
-  { name: "Palakkad", x: 160, z: -260, label: "Gateway to the hills", hq: "Palakkad", area: 4480, about: "Kerala's largest district, the Palakkad Gap" },
-  { name: "Thrissur", x: 35, z: -150, label: "Cultural heartland", hq: "Thrissur", area: 3032, about: "Kerala's cultural capital, Thrissur Pooram" },
-  { name: "Ernakulam", x: 0, z: 0, label: "Kochi coastal drive", hq: "Kakkanad", area: 2407, about: "Kochi, Kerala's commercial hub" },
-  { name: "Idukki", x: 200, z: 80, label: "Western Ghats", hq: "Painavu", area: 4358, about: "Hill plantations and the Idukki Arch Dam" },
-  { name: "Kottayam", x: 95, z: 200, label: "Lakeside country", hq: "Kottayam", area: 2203, about: "First fully-literate district, Kumarakom backwaters" },
-  { name: "Alappuzha", x: 5, z: 320, label: "Backwater trails", hq: "Alappuzha", area: 1414, about: "\"Venice of the East\", houseboat backwaters" },
-  { name: "Pathanamthitta", x: 155, z: 430, label: "Forest country", hq: "Pathanamthitta", area: 2652, about: "Gateway to the Sabarimala temple" },
-  { name: "Kollam", x: 50, z: 590, label: "Southern backwaters", hq: "Kollam", area: 2491, about: "Cashew trade and Ashtamudi Lake" },
-  { name: "Thiruvananthapuram", x: 95, z: 780, label: "The southern capital", hq: "Thiruvananthapuram", area: 2192, about: "State capital, Padmanabhaswamy Temple" },
+  { name: "Verath", x: -90, z: -850, label: "Northern coast", hq: "Verath", area: 1980, about: "An old sea fort watches over a coast of mixed tongues" },
+  { name: "Thalore", x: -60, z: -710, label: "Palm coast", hq: "Thalore", area: 2950, about: "Masked ritual dances and centuries-old hand looms" },
+  { name: "Mistvale", x: 95, z: -620, label: "Highland escape", hq: "Cloudspire", area: 2140, about: "Misty ridgelines and wild coffee and pepper groves" },
+  { name: "Calmora", x: -35, z: -540, label: "Sundered coast", hq: "Calmora", area: 2330, about: "A once-great spice port that still smells of cardamom" },
+  { name: "Greenmere", x: 20, z: -390, label: "Green country", hq: "Greenmere", area: 3520, about: "The most crowded of the fourteen provinces" },
+  { name: "Windgate", x: 160, z: -260, label: "Gateway to the hills", hq: "Windgate", area: 4460, about: "Largest of the provinces, guarding the mountain pass" },
+  { name: "Revelrun", x: 35, z: -150, label: "Cultural heartland", hq: "Revelrun", area: 3010, about: "Home of the grand lantern-and-drum festival" },
+  { name: "Kessel", x: 0, z: 0, label: "Harborside drive", hq: "Kessel Crest", area: 2390, about: "Kessel Harbor is the busiest trading exchange on the coast" },
+  { name: "Stonereach", x: 200, z: 80, label: "The high range", hq: "Stonereach", area: 4340, about: "Terraced plantations ring the great arch dam" },
+  { name: "Reedmere", x: 95, z: 200, label: "Lakeside country", hq: "Reedmere", area: 2190, about: "First province where every soul learned to read" },
+  { name: "Driftwater", x: 5, z: 320, label: "Backwater trails", hq: "Driftwater", area: 1400, about: "Houseboats drift the coast's own \"floating city\"" },
+  { name: "Ashwood", x: 155, z: 430, label: "Forest country", hq: "Ashwood", area: 2630, about: "The forest path up to the Mount Ashen shrine" },
+  { name: "Saltmere", x: 50, z: 590, label: "Southern backwaters", hq: "Saltmere", area: 2470, about: "Cashew traders and the wide Tidewater Lake" },
+  { name: "Sunhaven", x: 95, z: 780, label: "The southern capital", hq: "Sunhaven", area: 2180, about: "Capital province, home to the Sunken Court shrine" },
 ] as const;
 
 export const WEAPONS = [
@@ -34,7 +33,7 @@ export const WEAPONS = [
 export type TransportMode = "car" | "foot" | "boat" | "helicopter" | "drone";
 export const TRANSPORTS = [
   { id: "car", name: "Road collection", type: "LAND", description: "Five detailed cars for coastal roads and country lanes.", speed: 210 },
-  { id: "boat", name: "Malabar Runner", type: "SEA", description: "A motorboat with a working propeller and a rolling wake.", speed: 85 },
+  { id: "boat", name: "Tideway Runner", type: "SEA", description: "A motorboat with a working propeller and a rolling wake.", speed: 85 },
   { id: "helicopter", name: "Coastline Heli", type: "AIR", description: "Lift off, explore from above, and land at your own pace.", speed: 160 },
   { id: "drone", name: "Survey Quad", type: "DRONE", description: "A nimble quadcopter for aerial exploration and surveys.", speed: 65 },
 ] as const;
@@ -45,9 +44,9 @@ export const HOMES = DISTRICTS.map((district, index) => ({
 }));
 
 export const MISSIONS = [
-  { name: "A place to call home", type: "EXPLORATION", description: "Step inside the Kochi guesthouse and explore your new base.", objective: "Walk to the marked door and enter the guesthouse.", mode: "foot", x: 32, z: 38, altitude: 0, reward: 100 },
-  { name: "The coastal delivery", type: "DRIVING", description: "Take a local delivery north along the Kochi road.", objective: "Drive to the gold marker and stop inside it.", mode: "car", x: 0, z: -100, altitude: 0, reward: 200 },
-  { name: "A Malabar boat run", type: "BOATING", description: "Carry harbour supplies to the offshore meeting point.", objective: "Pilot the boat north to the gold marker and slow down.", mode: "boat", x: -190, z: -140, altitude: 0, reward: 250 },
+  { name: "A place to call home", type: "EXPLORATION", description: "Step inside the Kessel guesthouse and explore your new base.", objective: "Walk to the marked door and enter the guesthouse.", mode: "foot", x: 32, z: 38, altitude: 0, reward: 100 },
+  { name: "The coastal delivery", type: "DRIVING", description: "Take a local delivery north along the Kessel road.", objective: "Drive to the gold marker and stop inside it.", mode: "car", x: 0, z: -100, altitude: 0, reward: 200 },
+  { name: "A harbor boat run", type: "BOATING", description: "Carry harbour supplies to the offshore meeting point.", objective: "Pilot the boat north to the gold marker and slow down.", mode: "boat", x: -190, z: -140, altitude: 0, reward: 250 },
   { name: "A different perspective", type: "DRONE SURVEY", description: "Survey the coast from your quadcopter.", objective: "Reach the marker above 25 m and hover for 3 seconds.", mode: "drone", x: 0, z: -90, altitude: 25, reward: 300 },
   { name: "A soft landing", type: "HELICOPTER", description: "Make a short helicopter transfer to the northern landing zone.", objective: "Fly to the marked pad, descend below 4 m, and stop.", mode: "helicopter", x: 0, z: -120, altitude: 0, reward: 400 },
 ] as const;

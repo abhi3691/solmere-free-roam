@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { DISTRICTS, INITIAL_STATS, VEHICLES, WEAPONS, type GameCommand, type GameController } from "@/game/config";
 
 type IconName = "compass" | "map" | "car" | "target" | "help" | "reset" | "sun" | "arrow" | "close" | "pause" | "play" | "camera";
@@ -34,6 +33,33 @@ function CarArt({ color, shape, large = false }: { color: string; shape: string;
     <path d="M95 74h17m41 0h17M84 94h132" stroke="#182d2f" strokeOpacity=".35" strokeWidth="3" />
     <path d="M28 95h244" stroke="#223535" strokeWidth="6" />
     {[73, 225].map(x => <g key={x}><circle cx={x} cy="96" r="21" fill="#223034" /><circle cx={x} cy="96" r="12" fill="#adc0c1" /><circle cx={x} cy="96" r="6" fill="#455b5b" /></g>)}
+  </svg>;
+}
+
+const DISTRICT_COLORS = ["#b7c9a0", "#e4c17e", "#c9a2bb", "#93bdb8"];
+
+function DistrictMap({ active, ready, onSelect }: { active: number; ready: boolean; onSelect: (index: number) => void }) {
+  const skeletonX = (z: number) => 75 + (z + 850) * .065;
+  const skeletonY = (z: number) => 40 + (z + 850) * .26;
+  const boundaries = [-900, ...DISTRICTS.slice(0, -1).map((d, i) => (d.z + DISTRICTS[i + 1].z) / 2), 900];
+  return <svg viewBox="0 0 300 520" aria-label="Fictional map of the fourteen provinces">
+    {DISTRICTS.map((d, i) => {
+      const xTop = skeletonX(boundaries[i]), yTop = skeletonY(boundaries[i]);
+      const xBottom = skeletonX(boundaries[i + 1]), yBottom = skeletonY(boundaries[i + 1]);
+      const left = 24 + Math.max(0, -d.x) * .15;
+      const right = 40 + Math.max(0, d.x) * .55;
+      const points = `${xTop - left},${yTop} ${xTop + right},${yTop} ${xBottom + right},${yBottom} ${xBottom - left},${yBottom}`;
+      const midX = (xTop + xBottom) / 2 + (right - left) / 2, midY = (yTop + yBottom) / 2;
+      const isHere = active === i;
+      return <g key={d.name} className="district-region" role="button" tabIndex={ready ? 0 : -1} aria-disabled={!ready}
+        aria-label={`Fast travel to ${d.name}`}
+        onClick={() => ready && onSelect(i)}
+        onKeyDown={e => { if (ready && (e.key === "Enter" || e.key === " ")) onSelect(i); }}>
+        <polygon points={points} fill={DISTRICT_COLORS[i % DISTRICT_COLORS.length]} stroke={isHere ? "#e77948" : "#fbf8ec"} strokeWidth={isHere ? 3 : 1.3} />
+        <text x={midX} y={midY} textAnchor="middle" dominantBaseline="middle" fontSize="7.2" fontWeight={isHere ? 700 : 400} letterSpacing=".2"
+          fill="#203c39" stroke="#fbf8ec" strokeWidth="3" paintOrder="stroke">{d.name}</text>
+      </g>;
+    })}
   </svg>;
 }
 
@@ -109,7 +135,7 @@ export default function Game() {
 
   return <main className="game-shell">
     <aside className="rail" aria-label="Game navigation">
-      <Link href="/" className="brand-mark" aria-label="Kerala Free Roam home">k<span>.</span></Link>
+      <Link href="/" className="brand-mark" aria-label="Solmere Free Roam home">s<span>.</span></Link>
       <div className="rail-nav">
         <button className={!panel ? "rail-button active" : "rail-button"} title="Explore" aria-label="Explore" onClick={() => setPanel(null)}><Icon name="compass" /><span>Explore</span></button>
         <button className={panel === "map" ? "rail-button active" : "rail-button"} title="World map" onClick={() => openPanel("map")}><Icon name="map" /><span>Map</span></button>
@@ -122,7 +148,7 @@ export default function Game() {
 
     <div className="main-area">
       <header className="topbar">
-        <div className="wordmark">KERALA <span>FREE ROAM</span><small>AN OPEN-WORLD ESCAPE</small></div>
+        <div className="wordmark">SOLMERE <span>FREE ROAM</span><small>AN OPEN-WORLD ESCAPE</small></div>
         <div className="topbar-right"><span className="prototype"><i /> LIVE PROTOTYPE</span><span className="top-divider" /><button className="text-button" onClick={() => openPanel("help")}>How to play <Icon name="help" size={17} /></button></div>
       </header>
 
@@ -130,14 +156,14 @@ export default function Game() {
         <div className="canvas-mount" ref={mount} />
         <div className="world-vignette" />
         <div className="world-top">
-          <div className="location-tag"><span className="location-icon"><Icon name="compass" size={24} /></span><div><span className="eyebrow">YOU ARE EXPLORING</span><h2>{currentDistrict.name === "Ernakulam" ? "Kochi, Ernakulam" : currentDistrict.name}</h2><p>{currentDistrict.label} <span>/</span> Kerala, India</p></div></div>
+          <div className="location-tag"><span className="location-icon"><Icon name="compass" size={24} /></span><div><span className="eyebrow">YOU ARE EXPLORING</span><h2>{currentDistrict.name === "Kessel" ? "Kessel Harbor, Kessel" : currentDistrict.name}</h2><p>{currentDistrict.label} <span>/</span> Solmere Coast</p></div></div>
           <div className="weather"><Icon name="sun" size={25} /><div>Golden days<small>DAYLIGHT / FREE ROAM</small></div>{started && <button aria-label="Pause game" className="glass-icon" onClick={() => openPanel("pause")}><Icon name="pause" size={18} /></button>}</div>
         </div>
 
         {!started && !panel && <section className="welcome">
-          <div className="welcome-kicker"><span /> GOD&apos;S OWN COUNTRY. YOUR OWN WAY.</div>
+          <div className="welcome-kicker"><span /> ONE COAST. ENDLESS WAYS TO ROAM.</div>
           <h1>Take the<br /><em>scenic route.</em></h1>
-          <p>From the Malabar coast to the Western Ghats.<br />Pick your ride. Find your road. Roam free.</p>
+          <p>From the Sundered Coast to the Stonereach highlands.<br />Pick your ride. Find your road. Roam free.</p>
           <button className="primary start-button" disabled={!ready || !!error} onClick={() => setStarted(true)}>{error ? "3D renderer unavailable" : ready ? "Let's drive" : "Building your world..."}<Icon name="arrow" /></button>
           {error ? <div className="error-message" role="alert">Your browser needs WebGL to play. Enable hardware acceleration or try a recent Chrome, Safari, or Firefox.<details><summary>Technical details</summary>{error}</details><button onClick={() => { setError(""); setReady(false); setSession(s => s + 1); }}>Try again</button></div> : <div className="welcome-meta"><span>14 DISTRICTS</span><b> / </b><span>5 RIDES</span><b> / </b><span>NO WRONG TURNS</span></div>}
         </section>}
@@ -152,7 +178,7 @@ export default function Game() {
         <div className="world-bottom">
           <button className="minimap" onClick={() => openPanel("map")} aria-label="Open world map">
             <svg viewBox={`${stats.x - 130} ${stats.z - 100} 260 200`} aria-hidden="true"><rect x="-1500" y="-1500" width="3000" height="3000" fill="#bed0b3" /><rect x="-1500" y="-1500" width="1360" height="3000" fill="#81b9b8" /><path d="M-101-1000V1000M0-1000V1000M246-1000V1000" stroke="#e9e5cf" strokeWidth="9" />{DISTRICTS.map(d => <path key={d.name} d={`M-101 ${d.z}H246`} stroke="#e9e5cf" strokeWidth="9" />)}<circle cx={stats.x} cy={stats.z} r="16" fill="#ee7d4b" opacity=".25" /><circle cx={stats.x} cy={stats.z} r="6" fill="#e76e37" stroke="#fff" strokeWidth="3" /></svg>
-            <span className="map-north">N</span><span className="map-caption">EXPLORE KERALA <Icon name="arrow" size={14} /></span>
+            <span className="map-north">N</span><span className="map-caption">EXPLORE SOLMERE <Icon name="arrow" size={14} /></span>
           </button>
           <div className="scene-caption"><span>01 / THE COASTAL EDIT</span><strong>A little farther. A little freer.</strong><small>Stylized world. Real sense of adventure.</small></div>
           <div className="drive-hud"><div className="speed"><strong data-testid="speed">{String(stats.speed).padStart(3, "0")}</strong><span>{stats.driving ? "KM/H" : "ON FOOT"}</span></div><div className="speed-line"><span style={{ width: `${Math.min(100, stats.speed / currentCar.speed * 100)}%` }} /></div><div className="drive-details"><span>{stats.driving ? "AUTO" : WEAPONS[weapon].name.toUpperCase()}</span><b>{stats.driving ? (stats.speed > 0 ? "D" : "N") : `${stats.ammo} / ${WEAPONS[weapon].capacity}`}</b><span>{stats.driving ? "FREE ROAM" : `${stats.hits} HITS`}</span></div></div>
@@ -160,11 +186,11 @@ export default function Game() {
         {notice && <div className="toast" role="status">{notice}</div>}
 
         {panel && <div className="modal-backdrop"><section className={`panel panel-${panel}`} role="dialog" aria-modal="true" aria-labelledby="panel-title" ref={dialog}>
-          <div className="panel-heading"><div><span className="eyebrow">KERALA FREE ROAM / {panel === "pause" ? "TAKE A BREATHER" : "MAKE IT YOURS"}</span><h2 id="panel-title">{({ map: "A whole state of possibility.", garage: "Find your kind of freedom.", armory: "Your next target awaits.", help: "A few keys. Endless roads.", pause: "Enjoy the view." })[panel]}</h2></div><button className="close-button" aria-label="Close panel" onClick={() => setPanel(null)}><Icon name="close" /></button></div>
+          <div className="panel-heading"><div><span className="eyebrow">SOLMERE FREE ROAM / {panel === "pause" ? "TAKE A BREATHER" : "MAKE IT YOURS"}</span><h2 id="panel-title">{({ map: "A whole state of possibility.", garage: "Find your kind of freedom.", armory: "Your next target awaits.", help: "A few keys. Endless roads.", pause: "Enjoy the view." })[panel]}</h2></div><button className="close-button" aria-label="Close panel" onClick={() => setPanel(null)}><Icon name="close" /></button></div>
           {panel === "garage" && <><p className="panel-intro">Five original rides. Every road is a different story. Choose a car to take it out.</p><div className="garage-grid">{VEHICLES.map((car, index) => <button key={car.id} className={`vehicle-card ${vehicle === index ? "selected" : ""}`} onClick={() => { setVehicle(index); command({ type: "vehicle", index }); setNotice(`${car.name} is ready to roam.`); }}><div className="vehicle-card-top"><span>{car.type}</span><i style={{ background: car.color }} />{vehicle === index && <b>SELECTED</b>}</div><CarArt color={car.color} shape={car.shape} /><h3>{car.name}</h3><p>{car.inspiration}</p><div className="vehicle-specs"><span><strong>{car.speed}</strong> KM/H</span><span><strong>{car.handling}</strong> HANDLING</span></div></button>)}</div><div className="panel-footer"><small>Original procedural models. No brand affiliation or licensed replicas.</small><button className="primary" onClick={() => { setPanel(null); if (ready) setStarted(true); }} disabled={!ready}>Take it for a drive <Icon name="arrow" size={18} /></button></div></>}
-          {panel === "map" && <><p className="panel-intro">Fourteen district destinations, one connected playground. Select a destination to fast travel.</p><div className="map-layout"><div className="state-map"><Image src="/kerala-districts.png" alt="Map of Kerala's 14 districts" width={680} height={921} /><small>Map data: Wikimedia Commons, CC BY-SA 4.0. Travel distances compressed for gameplay.</small></div><div className="district-list">{DISTRICTS.map((d, index) => <button key={d.name} onClick={() => { command({ type: "travel", index }); setPanel(null); setStarted(true); setNotice(`Welcome to ${d.name}.`); }} disabled={!ready}><span className="district-number">{String(index + 1).padStart(2, "0")}</span><span><strong>{d.name}</strong><small>{d.label} <span>/</span> HQ {d.hq} <span>/</span> {d.area.toLocaleString()} km²</small><small className="district-about">{d.about}</small></span>{stats.district === index ? <span className="here-tag">YOU ARE HERE</span> : <Icon name="arrow" size={16} />}</button>)}</div></div></>}
+          {panel === "map" && <><p className="panel-intro">Fourteen province destinations, one connected playground. Select a destination to fast travel.</p><div className="map-layout"><div className="state-map"><span className="map-sea">THE<br />OPEN SEA</span><DistrictMap active={stats.district} ready={ready} onSelect={index => { command({ type: "travel", index }); setPanel(null); setStarted(true); setNotice(`Welcome to ${DISTRICTS[index].name}.`); }} /><small>STYLIZED / NOT TO SCALE / FICTIONAL PLACE</small></div><div className="district-list">{DISTRICTS.map((d, index) => <button key={d.name} onClick={() => { command({ type: "travel", index }); setPanel(null); setStarted(true); setNotice(`Welcome to ${d.name}.`); }} disabled={!ready}><span className="district-number">{String(index + 1).padStart(2, "0")}</span><span><strong>{d.name}</strong><small>{d.label} <span>/</span> HQ {d.hq} <span>/</span> {d.area.toLocaleString()} km²</small><small className="district-about">{d.about}</small></span>{stats.district === index ? <span className="here-tag">YOU ARE HERE</span> : <Icon name="arrow" size={16} />}</button>)}</div></div></>}
           {panel === "armory" && <><p className="panel-intro">A non-graphic target range is waiting at each district. Exit your car, face an orange target, and take your shot.</p><div className="weapon-grid">{WEAPONS.map((item, index) => <button className={`weapon-card ${weapon === index ? "selected" : ""}`} key={item.name} onClick={() => { setWeapon(index); command({ type: "weapon", index }); }}><span className="eyebrow">SLOT 0{index + 1}</span><Icon name="target" size={52} /><h3>{item.name}</h3><p>{item.capacity} rounds / {index === 0 ? "Balanced precision" : index === 1 ? "Rapid fire" : "Wide spread"}</p><strong>{weapon === index ? "EQUIPPED" : "EQUIP WEAPON"}</strong></button>)}</div><div className="range-tip"><Icon name="help" /><p>On foot: <kbd>A</kbd> <kbd>D</kbd> turn to aim, or drag the scene. <kbd>F</kbd> or click the scene to fire. <kbd>R</kbd> reloads. Targets reset after a hit.</p></div><div className="panel-footer"><small>Fictional gameplay only. No graphic violence.</small><button className="primary" disabled={!ready} onClick={() => { if (stats.driving) command({ type: "toggle-drive" }); setStarted(true); setPanel(null); }}>Head out on foot <Icon name="arrow" size={18} /></button></div></>}
-          {panel === "help" && <><p className="panel-intro">No missions to rush. No finish line to chase. Just explore.</p><div className="controls-grid">{[["W A S D", "Drive / walk", "Arrow keys work too"], ["SPACE", "Brake", "Hold SHIFT for a boost"], ["E", "Enter / exit car", "Switch between driving and walking"], ["F / CLICK", "Fire", "On foot, face a target or drag to aim"], ["1 2 3 / R", "Loadout / reload", "Switch weapons or refill your magazine"], ["C / ESC", "Camera / pause", "Change perspective or take a break"]].map(([key, title, subtitle]) => <div key={key}><kbd>{key}</kbd><strong>{title}</strong><p>{subtitle}</p></div>)}</div><div className="range-tip"><Icon name="reset" /><p>Stuck? Use <strong>Reset Ride</strong> to return to the nearest district road at any time. On mobile, hold the on-screen steering and pedal buttons.</p></div><p className="fine-print">Prototype scope: compressed, procedural geography with all 14 district destinations. Not a street-accurate Kerala map. No traffic, police, multiplayer, or saved progress yet.</p></>}
+          {panel === "help" && <><p className="panel-intro">No missions to rush. No finish line to chase. Just explore.</p><div className="controls-grid">{[["W A S D", "Drive / walk", "Arrow keys work too"], ["SPACE", "Brake", "Hold SHIFT for a boost"], ["E", "Enter / exit car", "Switch between driving and walking"], ["F / CLICK", "Fire", "On foot, face a target or drag to aim"], ["1 2 3 / R", "Loadout / reload", "Switch weapons or refill your magazine"], ["C / ESC", "Camera / pause", "Change perspective or take a break"]].map(([key, title, subtitle]) => <div key={key}><kbd>{key}</kbd><strong>{title}</strong><p>{subtitle}</p></div>)}</div><div className="range-tip"><Icon name="reset" /><p>Stuck? Use <strong>Reset Ride</strong> to return to the nearest district road at any time. On mobile, hold the on-screen steering and pedal buttons.</p></div><p className="fine-print">Prototype scope: a fictional, compressed, procedural geography with all 14 district destinations. Not modeled on any real place. No traffic, police, multiplayer, or saved progress yet.</p></>}
           {panel === "pause" && <><p className="panel-intro">Your adventure will be right here. The simulation is paused.</p><div className="pause-actions"><button className="primary" onClick={() => setPanel(null)}><Icon name="play" size={18} /> Back to the road</button><button className="secondary" onClick={reset}><Icon name="reset" size={18} /> Reset ride</button><button className="secondary" onClick={() => setPanel("map")}><Icon name="map" size={18} /> Explore the map</button></div></>}
         </section></div>}
       </section>
