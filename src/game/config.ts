@@ -7,21 +7,22 @@ export const VEHICLES = [
 ] as const;
 
 // Compressed district destinations, not surveyed coordinates or district boundaries.
+// hq/area/about are real reference facts about each district (approximate, for flavor, not survey-grade).
 export const DISTRICTS = [
-  { name: "Kasaragod", x: -90, z: -850, label: "Northern coast" },
-  { name: "Kannur", x: -60, z: -710, label: "Palm coast" },
-  { name: "Wayanad", x: 95, z: -620, label: "Highland escape" },
-  { name: "Kozhikode", x: -35, z: -540, label: "Malabar coast" },
-  { name: "Malappuram", x: 20, z: -390, label: "Green country" },
-  { name: "Palakkad", x: 160, z: -260, label: "Gateway to the hills" },
-  { name: "Thrissur", x: 35, z: -150, label: "Cultural heartland" },
-  { name: "Ernakulam", x: 0, z: 0, label: "Kochi coastal drive" },
-  { name: "Idukki", x: 200, z: 80, label: "Western Ghats" },
-  { name: "Kottayam", x: 95, z: 200, label: "Lakeside country" },
-  { name: "Alappuzha", x: 5, z: 320, label: "Backwater trails" },
-  { name: "Pathanamthitta", x: 155, z: 430, label: "Forest country" },
-  { name: "Kollam", x: 50, z: 590, label: "Southern backwaters" },
-  { name: "Thiruvananthapuram", x: 95, z: 780, label: "The southern capital" },
+  { name: "Kasaragod", x: -90, z: -850, label: "Northern coast", hq: "Kasaragod", area: 1992, about: "Bekal Fort and a multilingual coastline" },
+  { name: "Kannur", x: -60, z: -710, label: "Palm coast", hq: "Kannur", area: 2966, about: "Theyyam ritual art and handloom weaving" },
+  { name: "Wayanad", x: 95, z: -620, label: "Highland escape", hq: "Kalpetta", area: 2131, about: "Western Ghats forests and spice plantations" },
+  { name: "Kozhikode", x: -35, z: -540, label: "Malabar coast", hq: "Kozhikode", area: 2344, about: "Historic Malabar spice-trade port" },
+  { name: "Malappuram", x: 20, z: -390, label: "Green country", hq: "Malappuram", area: 3550, about: "Kerala's most populous district" },
+  { name: "Palakkad", x: 160, z: -260, label: "Gateway to the hills", hq: "Palakkad", area: 4480, about: "Kerala's largest district, the Palakkad Gap" },
+  { name: "Thrissur", x: 35, z: -150, label: "Cultural heartland", hq: "Thrissur", area: 3032, about: "Kerala's cultural capital, Thrissur Pooram" },
+  { name: "Ernakulam", x: 0, z: 0, label: "Kochi coastal drive", hq: "Kakkanad", area: 2407, about: "Kochi, Kerala's commercial hub" },
+  { name: "Idukki", x: 200, z: 80, label: "Western Ghats", hq: "Painavu", area: 4358, about: "Hill plantations and the Idukki Arch Dam" },
+  { name: "Kottayam", x: 95, z: 200, label: "Lakeside country", hq: "Kottayam", area: 2203, about: "First fully-literate district, Kumarakom backwaters" },
+  { name: "Alappuzha", x: 5, z: 320, label: "Backwater trails", hq: "Alappuzha", area: 1414, about: "\"Venice of the East\", houseboat backwaters" },
+  { name: "Pathanamthitta", x: 155, z: 430, label: "Forest country", hq: "Pathanamthitta", area: 2652, about: "Gateway to the Sabarimala temple" },
+  { name: "Kollam", x: 50, z: 590, label: "Southern backwaters", hq: "Kollam", area: 2491, about: "Cashew trade and Ashtamudi Lake" },
+  { name: "Thiruvananthapuram", x: 95, z: 780, label: "The southern capital", hq: "Thiruvananthapuram", area: 2192, about: "State capital, Padmanabhaswamy Temple" },
 ] as const;
 
 export const WEAPONS = [
