@@ -1103,9 +1103,36 @@ export function createGame(
     });
     return nearest;
   }
+  function nearbyHomeIndex() {
+    const position = player();
+    let nearest: number | null = null;
+    let distance = 9;
+    HOMES.forEach((home, index) => {
+      const next = Math.hypot(position.x - home.x, position.z - home.z);
+      if (next < distance) { distance = next; nearest = index; }
+    });
+    return nearest;
+  }
   function emitStats() {
     const position = player();
-    onStats({ speed: driving ? Math.round(Math.abs(speed) * 3.6) : 0, district: nearestDistrict(), driving, ammo: ammo[weaponIndex], hits, x: position.x, z: position.z });
+    onStats({
+      speed: driving ? Math.round(Math.abs(speed) * 3.6) : 0,
+      district: nearestDistrict(),
+      driving,
+      ammo: ammo[weaponIndex],
+      hits,
+      x: position.x,
+      z: position.z,
+      mode: driving ? "car" : "foot",
+      altitude: 0,
+      nearbyHome: nearbyHomeIndex(),
+      insideHome: null,
+      missionIndex: -1,
+      missionsCompleted: 0,
+      missionProgress: 0,
+      missionDistance: 0,
+      credits: 0,
+    });
   }
   function blocked(x: number, z: number, radius: number) {
     if (x < -136 + radius || x > 390 - radius || z < -985 + radius || z > 935 - radius) return true;
