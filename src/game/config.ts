@@ -30,6 +30,27 @@ export const WEAPONS = [
   { name: "Scattergun", capacity: 6, cooldown: 0.7 },
 ] as const;
 
+export type TransportMode = "car" | "foot" | "boat" | "helicopter" | "drone";
+export const TRANSPORTS = [
+  { id: "car", name: "Road collection", type: "LAND", description: "Five detailed cars for coastal roads and country lanes.", speed: 210 },
+  { id: "boat", name: "Malabar Runner", type: "SEA", description: "A motorboat with a working propeller and a rolling wake.", speed: 85 },
+  { id: "helicopter", name: "Coastline Heli", type: "AIR", description: "Lift off, explore from above, and land at your own pace.", speed: 160 },
+  { id: "drone", name: "Survey Quad", type: "DRONE", description: "A nimble quadcopter for aerial exploration and surveys.", speed: 65 },
+] as const;
+
+// Each home is reserved before procedural scenery is placed.
+export const HOMES = DISTRICTS.map((district, index) => ({
+  district: index, name: `${district.name} guesthouse`, x: district.x + 32, z: district.z + 30,
+}));
+
+export const MISSIONS = [
+  { name: "A place to call home", type: "EXPLORATION", description: "Step inside the Kochi guesthouse and explore your new base.", objective: "Walk to the marked door and enter the guesthouse.", mode: "foot", x: 32, z: 38, altitude: 0, reward: 100 },
+  { name: "The coastal delivery", type: "DRIVING", description: "Take a local delivery north along the Kochi road.", objective: "Drive to the gold marker and stop inside it.", mode: "car", x: 0, z: -100, altitude: 0, reward: 200 },
+  { name: "A Malabar boat run", type: "BOATING", description: "Carry harbour supplies to the offshore meeting point.", objective: "Pilot the boat north to the gold marker and slow down.", mode: "boat", x: -190, z: -140, altitude: 0, reward: 250 },
+  { name: "A different perspective", type: "DRONE SURVEY", description: "Survey the coast from your quadcopter.", objective: "Reach the marker above 25 m and hover for 3 seconds.", mode: "drone", x: 0, z: -90, altitude: 25, reward: 300 },
+  { name: "A soft landing", type: "HELICOPTER", description: "Make a short helicopter transfer to the northern landing zone.", objective: "Fly to the marked pad, descend below 4 m, and stop.", mode: "helicopter", x: 0, z: -120, altitude: 0, reward: 400 },
+] as const;
+
 export type GameStats = {
   speed: number;
   district: number;
@@ -38,8 +59,17 @@ export type GameStats = {
   hits: number;
   x: number;
   z: number;
+  mode: TransportMode;
+  altitude: number;
+  nearbyHome: number | null;
+  insideHome: number | null;
+  missionIndex: number;
+  missionsCompleted: number;
+  missionProgress: number;
+  missionDistance: number;
+  credits: number;
 };
-export const INITIAL_STATS: GameStats = { speed: 0, district: 7, driving: true, ammo: 12, hits: 0, x: 0, z: 0 };
+export const INITIAL_STATS: GameStats = { speed: 0, district: 7, driving: true, ammo: 12, hits: 0, x: 0, z: 0, mode: "car", altitude: 0, nearbyHome: null, insideHome: null, missionIndex: -1, missionsCompleted: 0, missionProgress: 0, missionDistance: 0, credits: 0 };
 export type GameCommand =
   | { type: "vehicle"; index: number }
   | { type: "travel"; index: number }
@@ -49,6 +79,11 @@ export type GameCommand =
   | { type: "reload" }
   | { type: "fire" }
   | { type: "camera" }
+  | { type: "transport"; mode: Exclude<TransportMode, "foot"> }
+  | { type: "home-travel"; index: number }
+  | { type: "interact" }
+  | { type: "mission-start"; index: number }
+  | { type: "mission-abandon" }
   | { type: "pause"; value: boolean }
   | { type: "input"; key: string; pressed: boolean };
 export type GameController = { command: (command: GameCommand) => void; dispose: () => void };
