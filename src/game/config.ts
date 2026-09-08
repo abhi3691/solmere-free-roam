@@ -22,6 +22,7 @@ export const DISTRICTS = [
   { name: "Ashwood", x: 155, z: 430, label: "Forest country", hq: "Ashwood", area: 2630, about: "The forest path up to the Mount Ashen shrine" },
   { name: "Saltmere", x: 50, z: 590, label: "Southern backwaters", hq: "Saltmere", area: 2470, about: "Cashew traders and the wide Tidewater Lake" },
   { name: "Sunhaven", x: 95, z: 780, label: "The southern capital", hq: "Sunhaven", area: 2180, about: "Capital province, home to the Sunken Court shrine" },
+  { name: "Wastelands Edge", x: 230, z: 940, label: "The scorched frontier", hq: "Outlander Camp", area: 860, about: "Where the coast road cracks into dry earth, rusted rigs, and a wind-scoured ruin" },
 ] as const;
 
 export const WEAPONS = [
@@ -106,5 +107,6 @@ export type GameCommand =
   | { type: "mission-start"; index: number }
   | { type: "mission-abandon" }
   | { type: "pause"; value: boolean }
+  | { type: "mute"; value: boolean }
   | { type: "input"; key: string; pressed: boolean };
 export type GameController = { command: (command: GameCommand) => void; dispose: () => void };

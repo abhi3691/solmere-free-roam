@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { createGameAudio } from "./audio";
 import { DISTRICTS, FUEL_PRICE, FUEL_STATIONS, HOMES, MISSIONS, VEHICLES, WEAPONS, type GameCommand, type GameController, type GameStats, type TransportMode } from "./config";
 
 type Road = { ax: number; az: number; bx: number; bz: number; width: number };
@@ -28,6 +30,7 @@ export function createGame(
   canvas.tabIndex = 0;
   canvas.setAttribute("aria-label", "Solmere free roam. WASD to move and steer, Space brake, Shift run or boost, E enter/exit nearby stopped car or guesthouse, F fire on foot, R reload, 1 through 6 select gun. Drag to aim on foot.");
   container.appendChild(canvas);
+  const audio = createGameAudio();
 
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();
@@ -183,10 +186,10 @@ export function createGame(
   scene.add(sun, sun.target);
   mesh(sphere, material(new THREE.MeshBasicMaterial({ color: "#fff2cc", fog: false })), -540, 420, -700, 30, 30, 30);
 
-  const ground = mesh(plane, grass, 130, 0, -25, 540, 1950);
+  const ground = mesh(plane, grass, 130, 0, -25, 540, 2200);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
-  const beach = mesh(plane, sand, -129, 0.012, -25, 22, 1950);
+  const beach = mesh(plane, sand, -129, 0.012, -25, 22, 2200);
   beach.rotation.x = -Math.PI / 2;
   const oceanTime = { value: 0 };
   const oceanMat = paint("#3caeb1", 0.28, 0.18);
@@ -227,15 +230,15 @@ export function createGame(
     surface.rotation.set(-Math.PI / 2, 0, -angle);
     surface.receiveShadow = true;
   }
-  road(0, -960, 0, 890, 15);
-  road(-101, -920, -101, 870, 11);
-  road(246, -890, 246, 850, 12);
+  road(0, -960, 0, 1030, 15);
+  road(-101, -920, -101, 1030, 11);
+  road(246, -890, 246, 1030, 12);
   for (const district of DISTRICTS) {
     road(-101, district.z, 246, district.z, 12);
     if (district.x !== 0) road(district.x, district.z - 54, district.x, district.z + 54, 14);
   }
   road(-101, -920, 246, -920, 12);
-  road(-101, 870, 246, 870, 12);
+  road(-101, 1030, 246, 1030, 12);
 
   function roadDistance(x: number, z: number, r: Road) {
     const dx = r.bx - r.ax;
@@ -268,6 +271,9 @@ export function createGame(
   const colliders: Collider[] = [...homeColliders];
   const nearHome = (x: number, z: number, margin = 0) => HOMES.some((home) => Math.abs(x - home.x) < 9 + margin && Math.abs(z - home.z) < 12 + margin);
   const nearStation = (x: number, z: number, margin = 0) => FUEL_STATIONS.some((station) => Math.abs(x - station.x) < 12 + margin && Math.abs(z - station.z) < 13 + margin);
+  // The imported Wastelands Edge diorama brings its own ruins and scatter; keep procedural scenery out of its footprint.
+  const WASTELANDS = DISTRICTS[DISTRICTS.length - 1];
+  const nearWastelands = (x: number, z: number, margin = 0) => Math.hypot(x - WASTELANDS.x, z - WASTELANDS.z) < 46 + margin;
   // Reserve the entire forecourt, including its road approach, before random scenery.
   for (const station of FUEL_STATIONS) {
     const { x, z } = station;
@@ -302,13 +308,14 @@ export function createGame(
   const roofDetails: THREE.Matrix4[] = [];
   const buildingColors = ["#eee5cd", "#bcd2c6", "#e6b99f", "#f3d28b", "#a9c4cb"];
   for (const district of DISTRICTS) {
+    if (district.name === "Wastelands Edge") continue;
     for (let i = 0; i < 22; i++) {
       const x = district.x + (random() - 0.5) * 180;
       const z = district.z + (random() - 0.5) * 108;
       const w = 6 + random() * 9;
       const depth = 6 + random() * 8;
       const height = 4 + Math.floor(random() * 3) * 3.2;
-      if (x < -113 || x > 280 || nearRoad(x, z, Math.max(w, depth) * 0.72 + 4) || nearHome(x, z, Math.max(w, depth) / 2) || nearStation(x, z, Math.max(w, depth) / 2)) continue;
+      if (x < -113 || x > 280 || nearRoad(x, z, Math.max(w, depth) * 0.72 + 4) || nearHome(x, z, Math.max(w, depth) / 2) || nearStation(x, z, Math.max(w, depth) / 2) || nearWastelands(x, z, Math.max(w, depth))) continue;
       if (Math.hypot(x - district.x - 13, z - district.z + 43) < 23) continue;
       if (colliders.some((c) => x > c.minX - w && x < c.maxX + w && z > c.minZ - depth && z < c.maxZ + depth)) continue;
       colliders.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - depth / 2, maxZ: z + depth / 2, height: height + 2.7 });
@@ -485,7 +492,7 @@ export function createGame(
   for (let i = 0; i < 1000; i++) {
     const x = i < 140 ? -116 + random() * 6 : -110 + random() * 460;
     const z = -955 + random() * 1850;
-    if (nearRoad(x, z, 3) || nearHome(x, z, 5) || nearStation(x, z, 5) || colliders.some((c) => x > c.minX - 5 && x < c.maxX + 5 && z > c.minZ - 5 && z < c.maxZ + 5)) continue;
+    if (nearRoad(x, z, 3) || nearHome(x, z, 5) || nearStation(x, z, 5) || nearWastelands(x, z, 6) || colliders.some((c) => x > c.minX - 5 && x < c.maxX + 5 && z > c.minZ - 5 && z < c.maxZ + 5)) continue;
     if (DISTRICTS.some((d) => Math.hypot(x - d.x, z - (d.z - 40)) < 15)) continue;
     const height = 7 + random() * 5;
     const angle = random() * Math.PI * 2;
@@ -514,7 +521,7 @@ export function createGame(
   for (let i = 0; i < 450; i++) {
     const x = -110 + random() * 460;
     const z = -970 + random() * 1890;
-    if (nearRoad(x, z, 10) || nearHome(x, z, 4) || nearStation(x, z, 4)) continue;
+    if (nearRoad(x, z, 10) || nearHome(x, z, 4) || nearStation(x, z, 4) || nearWastelands(x, z, 5)) continue;
     shrubs.push(matrix(x, 0.8, z, 1.5 + random() * 2, 1 + random(), 1.5 + random() * 2));
   }
   batch(geometry(new THREE.IcosahedronGeometry(1, 2)), paint("#5e824d"), shrubs);
@@ -564,6 +571,8 @@ export function createGame(
   const ringColor = material(new THREE.MeshBasicMaterial({ color: "#fff0c5" }));
   for (const [index, district] of DISTRICTS.entries()) {
     sign(district.name, district.label, district.x + 19, district.z - 12);
+    // The Wastelands Edge diorama supplies its own ruin, wreck and marker; skip the coastal-village kit for it.
+    if (district.name === "Wastelands Edge") continue;
     for (let j = 0; j < 3; j++) {
       const x = district.x + 9 + j * 3.7;
       const z = district.z - 40 - j * 3;
@@ -597,6 +606,41 @@ export function createGame(
       for (const side of [-1, 1]) mesh(box, glass, side * 1.31, 1.8, 0.5, 0.03, 0.8, 4.3, boat);
     }
   }
+
+  // A pre-baked diorama (terrain, ruins, a wrecked 4x4 and an operator figure) dropped in as its own district.
+  const wastelands = new THREE.Group();
+  wastelands.position.set(WASTELANDS.x, 0, WASTELANDS.z);
+  scene.add(wastelands);
+  new GLTFLoader().load(
+    "/models/wastelands-edge.glb",
+    (gltf) => {
+      const model = gltf.scene;
+      model.traverse((child) => {
+        if (!(child instanceof THREE.Mesh)) return;
+        child.castShadow = true;
+        child.receiveShadow = true;
+        geometries.add(child.geometry);
+        for (const childMaterial of Array.isArray(child.material) ? child.material : [child.material]) {
+          materials.add(childMaterial);
+          for (const slot of ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap"] as const) {
+            const slotTexture = (childMaterial as THREE.MeshStandardMaterial)[slot];
+            if (slotTexture) textures.add(slotTexture);
+          }
+        }
+      });
+      if (disposed) {
+        model.traverse((child) => {
+          if (!(child instanceof THREE.Mesh)) return;
+          child.geometry.dispose();
+          for (const childMaterial of Array.isArray(child.material) ? child.material : [child.material]) childMaterial.dispose();
+        });
+        return;
+      }
+      wastelands.add(model);
+    },
+    undefined,
+    (loadError) => console.error("Wastelands Edge model failed to load", loadError),
+  );
 
   const car = new THREE.Group();
   scene.add(car);
@@ -1159,6 +1203,7 @@ export function createGame(
   let steering = 0;
   let footSpeed = 0;
   let gait = 0;
+  let lastFootStep = 0;
   let aimPitch = 0;
   let recoil = 0;
   let cameraMode = 0;
@@ -1220,12 +1265,14 @@ export function createGame(
   }
   function emitStats() {
     const position = player();
+    const district = nearestDistrict();
+    audio.setAmbient(district === DISTRICTS.length - 1);
     const missionTarget = missionIndex !== -1 ? MISSIONS[missionIndex] : null;
     const missionDistance = missionTarget ? Math.hypot(position.x - missionTarget.x, position.z - missionTarget.z) : 0;
     const missionProgress = missionTarget ? THREE.MathUtils.clamp(1 - missionDistance / missionStartDistance, 0, 1) : 0;
     onStats({
       speed: Math.round(Math.abs(driving ? speed : footSpeed) * 3.6),
-      district: nearestDistrict(),
+      district,
       driving,
       ammo: ammo[weaponIndex],
       weaponAmmo: [...ammo],
@@ -1280,7 +1327,7 @@ export function createGame(
         return (lx - closestX) ** 2 + (lz - closestZ) ** 2 < radius * radius;
       });
     }
-    if (x < -136 + radius || x > 390 - radius || z < -985 + radius || z > 935 - radius) return true;
+    if (x < -136 + radius || x > 390 - radius || z < -985 + radius || z > 1025 - radius) return true;
     return colliders.some((c) => {
       if ((c.minY ?? 0) > 2.5) return false;
       const closestX = THREE.MathUtils.clamp(x, c.minX, c.maxX);
@@ -1307,7 +1354,7 @@ export function createGame(
     const cz = z - midX * sin + midZ * cos;
     const extentX = Math.abs(cos) * hx + Math.abs(sin) * hz;
     const extentZ = Math.abs(sin) * hx + Math.abs(cos) * hz;
-    if (cx - extentX < -136 || cx + extentX > 390 || cz - extentZ < -985 || cz + extentZ > 935) return true;
+    if (cx - extentX < -136 || cx + extentX > 390 || cz - extentZ < -985 || cz + extentZ > 1025) return true;
     // Separating axes for an oriented vehicle against each static world box.
     return colliders.some((c) => {
       if ((c.minY ?? 0) > carBounds.max.y) return false;
@@ -1483,6 +1530,7 @@ export function createGame(
     }
     ammo[weaponIndex]--;
     fireCooldown = spec.cooldown;
+    audio.fire(spec.pellets, spec.automatic);
     let best: Target | undefined;
     let bestScore = Math.cos(THREE.MathUtils.degToRad(10));
     for (const target of targets) {
@@ -1519,6 +1567,7 @@ export function createGame(
           target.cooldown = 1.7;
           target.mesh.scale.setScalar(0.7);
           target.ring.material = gold;
+          audio.hit(hits % 5 === 0);
           if (hits % 5 === 0) { credits += 50; notify("Target hit +10 credits. Five-hit bonus +50 credits!"); }
           else notify("Target hit +10 credits.");
         }
@@ -1552,7 +1601,12 @@ export function createGame(
       paused = action.value;
       clearInput();
       lastTime = performance.now();
+      audio.setActive(!paused);
       emitStats();
+      return;
+    }
+    if (action.type === "mute") {
+      audio.setMuted(action.value);
       return;
     }
     if (action.type === "input") {
@@ -1637,6 +1691,7 @@ export function createGame(
         if (!paused && !driving && reloadRemaining <= 0 && ammo[weaponIndex] < WEAPONS[weaponIndex].capacity) {
           reloadRemaining = WEAPONS[weaponIndex].reload;
           notify(`Reloading ${WEAPONS[weaponIndex].name}...`);
+          audio.reloadStart();
         }
         break;
       case "fire": fire(); break;
@@ -1781,6 +1836,7 @@ export function createGame(
       if (reloadRemaining === 0) {
         ammo[weaponIndex] = WEAPONS[weaponIndex].capacity;
         notify(`${WEAPONS[weaponIndex].name} reloaded.`);
+        audio.reloadComplete();
         emitStats();
       }
     }
@@ -1834,6 +1890,7 @@ export function createGame(
           speed = 0;
           if (impact > 8) {
             const damage = Math.min(100, Math.ceil((impact - 8) * 2.5));
+            audio.impact((impact - 8) / 20);
             health = Math.max(0, health - damage);
             notify(health > 0 ? `Collision: -${damage} health. Slow down near obstacles.` : "Health depleted. Use Respawn to recover.");
             if (health <= 0) {
@@ -1855,7 +1912,9 @@ export function createGame(
       car.rotation.z = THREE.MathUtils.damp(car.rotation.z, -steering * Math.min(Math.abs(speed) / 45, 1) * 0.035, 5, dt);
       wheelPivots.forEach((wheel, index) => { wheel.rotation.y = index < 2 ? steering * 0.35 : 0; });
       wheelRolls.forEach((wheel) => { wheel.rotation.x -= traveled / (offroad ? 0.525 : 0.43); });
+      audio.setEngine(true, Math.abs(speed) / maxSpeed);
     } else {
+      audio.setEngine(false, 0);
       heading += turn * 2.3 * dt;
       const canSprint = keys.has("shift") && stamina > 0.5;
       footSpeed = THREE.MathUtils.damp(footSpeed, forward * (canSprint ? 5.5 : 2.5), forward ? 7 : 10, dt);
@@ -1878,6 +1937,10 @@ export function createGame(
       if (canSprint && running) stamina = Math.max(0, stamina - dt * 20);
       else stamina = Math.min(100, stamina + dt * (running ? 6 : 14));
       gait += traveled * (running ? 2.8 : 3.8);
+      if (moving) {
+        const step = Math.floor(gait / Math.PI);
+        if (step !== lastFootStep) { lastFootStep = step; audio.footstep(running); }
+      } else lastFootStep = Math.floor(gait / Math.PI);
       const stride = Math.min(1, Math.abs(footSpeed) / (running ? 5.5 : 2.5));
       legs.forEach(({ hip, knee, ankle }, index) => {
         const phase = gait + index * Math.PI;
@@ -1943,6 +2006,7 @@ export function createGame(
     dispose() {
       if (disposed) return;
       disposed = true;
+      audio.dispose();
       cancelAnimationFrame(frameId);
       clearInput();
       resizeObserver.disconnect();

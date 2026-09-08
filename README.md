@@ -1,6 +1,6 @@
 # Solmere Free Roam
 
-A playable, single-player 3D browser sandbox built with Next.js, React, TypeScript, and Three.js. All models are generated in code; no external asset or map downloads are required at runtime.
+A playable, single-player 3D browser sandbox built with Next.js, React, TypeScript, and Three.js. Nearly every model is generated in code at runtime; the Wastelands Edge district loads one pre-baked, original procedural glTF diorama from `/public/models`.
 
 ## Run
 
@@ -15,16 +15,18 @@ Open http://localhost:3000 and select **Let's drive**.
 
 ## Included
 
-- A compressed, wholly fictional coastal world with connected roads and all 14 province destinations. Fast travel through the Map panel.
+- A compressed, wholly fictional coastal world with connected roads and all 15 province destinations. Fast travel through the Map panel.
 - Coastline, animated ocean, palms, buildings, backwater scenery, and decorative hills.
+- Wastelands Edge: a scorched frontier outpost past Sunhaven, with its own ruin, wrecked 4x4, and operator figure loaded from a pre-baked diorama.
 - Five original procedural cars inspired by BMW, Audi, Jeep, Rolls-Royce, and Defender vehicle categories. Garage changes appearance and arcade handling.
 - Driving, braking, boost, three camera views, walking, collisions, and nearest-road reset.
 - Six selectable fictional weapons with different firing rates, spread, range, magazine sizes, reload times, recoil, and visible shot trails. Scattergun fires multiple pellets; shots originate at the held muzzle and respect cover.
 - Improved procedural human proportions, facial features, articulated fingers, clothing seams, shoes, and distance-driven walking/aiming animation.
 - Proximity/path-checked car entry, safe stopped-only exits, oriented car collisions, and bounded physics substeps.
-- Health, impact damage, death/recovery, per-car fuel consumption, and fourteen petrol stations.
+- Health, impact damage, death/recovery, per-car fuel consumption, and fifteen petrol stations.
 - Earn 10 credits per target hit plus 50 every five hits. Start with 100 credits; petrol costs 2 credits/L, purchased up to 10 L per transaction.
 - Responsive map, garage, loadout, pause menu, and touch steering/pedals. Simulation pauses while panels are open.
+- Procedural Web Audio: engine hum tied to road speed, footsteps, gunfire, reloads, hit markers, collision impacts, and district-aware ambience. No audio files; mute from the pause menu.
 
 ## Controls
 
