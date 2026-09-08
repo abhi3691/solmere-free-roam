@@ -3,7 +3,7 @@ import path from "node:path";
 import { expect, test as base } from "@playwright/test";
 import ts from "typescript";
 import type { Object3D } from "three";
-import { FUEL_PRICE, FUEL_STATIONS, HOMES, VEHICLES, WEAPONS, type GameController, type GameStats } from "../src/game/config";
+import { FUEL_PRICE, FUEL_STATIONS, HOMES, MISSIONS, VEHICLES, WEAPONS, type GameController, type GameStats } from "../src/game/config";
 
 declare global {
   interface Window {
@@ -439,4 +439,62 @@ test("collision damage, death lockout, respawn and empty-tank propulsion", async
   expect(empty.restarted.fuel).toBeGreaterThan(0);
   expect(empty.restarted.fuel).toBeLessThan(10);
   expect(empty.restarted.speed).toBeGreaterThan(0);
+});
+
+test("mission objectives lock, track distance, pay out on arrival, and sprint drains stamina", async ({ page }) => {
+  const result = await page.evaluate((home) => {
+    const e = window.engine;
+    const command = e.controller.command;
+    command({ type: "mission-start", index: 2 }); // Boat mission: no boat control yet, must stay locked.
+    const rejected = { ...e.stats };
+    command({ type: "mission-start", index: 0 }); // Foot mission: "A place to call home".
+    const started = { ...e.stats };
+    command({ type: "toggle-drive" });
+    e.avatar.position.set(home.x, 0, home.z + 38);
+    e.avatar.rotation.y = 0;
+    e.advance(0.01);
+    const farAway = { ...e.stats };
+    command({ type: "input", key: "shift", pressed: true });
+    command({ type: "input", key: "w", pressed: true });
+    e.advance(1.5);
+    const sprinting = { ...e.stats };
+    e.advance(20);
+    const arrived = { ...e.stats };
+    command({ type: "input", key: "w", pressed: false });
+    command({ type: "input", key: "shift", pressed: false });
+    e.advance(6);
+    const rested = { ...e.stats };
+    return { rejected, started, farAway, sprinting, arrived, rested };
+  }, HOMES[7]);
+  expect(result.rejected.missionIndex).toBe(-1);
+  expect(result.started).toMatchObject({ missionIndex: 0, missionsCompleted: 0 });
+  expect(result.started.missionDistance).toBeGreaterThan(0);
+  expect(result.farAway.missionDistance).toBeGreaterThan(30);
+  expect(result.sprinting.stamina).toBeLessThan(100);
+  expect(result.arrived).toMatchObject({ missionIndex: -1, missionsCompleted: 1, credits: 100 + MISSIONS[0].reward });
+  expect(result.rested.stamina).toBeGreaterThan(result.sprinting.stamina);
+});
+
+test("guesthouse entry via interact moves the avatar indoors and confines movement to the room", async ({ page }) => {
+  const result = await page.evaluate((home) => {
+    const e = window.engine;
+    const command = e.controller.command;
+    command({ type: "toggle-drive" });
+    e.avatar.position.set(home.x, 0, home.z + 8);
+    const outside = { ...e.stats };
+    command({ type: "interact" });
+    const entered = { ...e.stats };
+    command({ type: "input", key: "s", pressed: true });
+    e.advance(6);
+    command({ type: "input", key: "s", pressed: false });
+    const pinned = { x: e.avatar.position.x, z: e.avatar.position.z };
+    command({ type: "interact" });
+    const exited = { ...e.stats };
+    return { outside, entered, pinned, exited };
+  }, HOMES[7]);
+  expect(result.outside.insideHome).toBeNull();
+  expect(result.entered.insideHome).toBe(7);
+  // Walking "backward" from just inside the door pushes toward the far wall; the room wall must stop it.
+  expect(result.pinned.z).toBeGreaterThan(HOMES[7].z - 7.9);
+  expect(result.exited.insideHome).toBeNull();
 });

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { DISTRICTS, FUEL_PRICE, FUEL_STATIONS, HOMES, VEHICLES, WEAPONS, type GameCommand, type GameController, type GameStats, type TransportMode } from "./config";
+import { DISTRICTS, FUEL_PRICE, FUEL_STATIONS, HOMES, MISSIONS, VEHICLES, WEAPONS, type GameCommand, type GameController, type GameStats, type TransportMode } from "./config";
 
 type Road = { ax: number; az: number; bx: number; bz: number; width: number };
 type Collider = { minX: number; maxX: number; minZ: number; maxZ: number; height: number; minY?: number };
@@ -26,7 +26,7 @@ export function createGame(
   const canvas = renderer.domElement;
   canvas.style.cssText = "display:block;width:100%;height:100%;position:absolute;inset:0;touch-action:none;outline:none;";
   canvas.tabIndex = 0;
-  canvas.setAttribute("aria-label", "Solmere free roam. WASD to move and steer, Space brake, Shift run or boost, E enter/exit nearby stopped car, F fire on foot, R reload, 1 through 6 select gun. Drag to aim on foot.");
+  canvas.setAttribute("aria-label", "Solmere free roam. WASD to move and steer, Space brake, Shift run or boost, E enter/exit nearby stopped car or guesthouse, F fire on foot, R reload, 1 through 6 select gun. Drag to aim on foot.");
   container.appendChild(canvas);
 
   const geometries = new Set<THREE.BufferGeometry>();
@@ -1167,7 +1167,22 @@ export function createGame(
   let hits = 0;
   let credits = 100;
   let health = 100;
+  let stamina = 100;
+  let gameMinutes = 360;
+  let insideHome: number | null = null;
+  let missionIndex = -1;
+  let missionsCompleted = 0;
+  let missionStartDistance = 1;
   const fuel = VEHICLES.map(() => 65);
+  const ROOM_HALF_X = 6.4;
+  const ROOM_MIN_Z = -7.3;
+  const ROOM_MAX_Z = 7.9;
+  function formatClock(minutes: number) {
+    const total = Math.floor(minutes) % 1440;
+    const h = Math.floor(total / 60);
+    const m = total % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }
   let message = "";
   let messageRemaining = 0;
   let fireCooldown = 0;
@@ -1205,25 +1220,31 @@ export function createGame(
   }
   function emitStats() {
     const position = player();
+    const missionTarget = missionIndex !== -1 ? MISSIONS[missionIndex] : null;
+    const missionDistance = missionTarget ? Math.hypot(position.x - missionTarget.x, position.z - missionTarget.z) : 0;
+    const missionProgress = missionTarget ? THREE.MathUtils.clamp(1 - missionDistance / missionStartDistance, 0, 1) : 0;
     onStats({
       speed: Math.round(Math.abs(driving ? speed : footSpeed) * 3.6),
       district: nearestDistrict(),
       driving,
       ammo: ammo[weaponIndex],
+      weaponAmmo: [...ammo],
       hits,
       x: position.x,
       z: position.z,
       mode: driving ? "car" : "foot",
       altitude: 0,
       nearbyHome: nearbyHomeIndex(),
-      insideHome: null,
-      missionIndex: -1,
-      missionsCompleted: 0,
-      missionProgress: 0,
-      missionDistance: 0,
+      insideHome,
+      missionIndex,
+      missionsCompleted,
+      missionProgress,
+      missionDistance,
       credits,
       health,
+      stamina,
       fuel: fuel[vehicleIndex],
+      clock: formatClock(gameMinutes),
       nearbyStation: nearbyStationIndex(),
       canEnterCar: canEnterCar(),
       weaponIndex,
@@ -1248,6 +1269,17 @@ export function createGame(
     return nearest;
   }
   function blocked(x: number, z: number, radius: number) {
+    if (insideHome !== null) {
+      const home = HOMES[insideHome];
+      const lx = x - home.x;
+      const lz = z - home.z;
+      if (lx < -ROOM_HALF_X + radius || lx > ROOM_HALF_X - radius || lz < ROOM_MIN_Z + radius || lz > ROOM_MAX_Z - radius) return true;
+      return indoorColliders.some((c) => {
+        const closestX = THREE.MathUtils.clamp(lx, c.minX, c.maxX);
+        const closestZ = THREE.MathUtils.clamp(lz, c.minZ, c.maxZ);
+        return (lx - closestX) ** 2 + (lz - closestZ) ** 2 < radius * radius;
+      });
+    }
     if (x < -136 + radius || x > 390 - radius || z < -985 + radius || z > 935 - radius) return true;
     return colliders.some((c) => {
       if ((c.minY ?? 0) > 2.5) return false;
@@ -1353,6 +1385,8 @@ export function createGame(
     if (carBlocked(x, z, angle)) { notify("No safe parking space at that destination."); return false; }
     const exit = driving ? null : safeExit(x, z, angle);
     if (!driving && !exit) { notify("No safe place to stand beside the car."); return false; }
+    if (insideHome !== null) { interior.visible = false; insideHome = null; }
+    stamina = 100;
     car.position.set(x, 0, z);
     avatar.position.copy(exit ?? car.position);
     car.rotation.set(0, angle, 0);
@@ -1526,7 +1560,10 @@ export function createGame(
       if (!action.pressed) { keys.delete(key); return; }
       if (paused || health <= 0 || keys.has(key)) return;
       keys.add(key);
-      if (key === "e") command({ type: "toggle-drive" });
+      if (key === "e") {
+        if (driving || (insideHome === null && canEnterCar())) command({ type: "toggle-drive" });
+        else command({ type: "interact" });
+      }
       else if (key === "r") command({ type: "reload" });
       else if (key === "f") command({ type: "fire" });
       else if (key === "c") command({ type: "camera" });
@@ -1604,6 +1641,56 @@ export function createGame(
         break;
       case "fire": fire(); break;
       case "camera": cameraMode = (cameraMode + 1) % 3; updateCamera(0, true); break;
+      case "mission-start":
+        if (validIndex(action.index, MISSIONS.length) && missionIndex !== action.index) {
+          const target = MISSIONS[action.index];
+          if (target.mode !== "car" && target.mode !== "foot") { notify("That objective needs a vehicle mode still in testing."); break; }
+          missionIndex = action.index;
+          missionStartDistance = Math.max(1, Math.hypot(player().x - target.x, player().z - target.z));
+          missionMarker.visible = true;
+          missionMarker.position.set(target.x, 0.05, target.z);
+          notify(`New objective: ${target.name}.`);
+        }
+        break;
+      case "mission-abandon":
+        if (missionIndex !== -1) {
+          missionIndex = -1;
+          missionMarker.visible = false;
+          notify("Objective abandoned.");
+        }
+        break;
+      case "home-travel":
+        if (validIndex(action.index, HOMES.length)) {
+          const home = HOMES[action.index];
+          if (placePlayer(home.x, home.z + 9)) notify(`Fast-travelled to the ${home.name}.`);
+        }
+        break;
+      case "interact":
+        if (!driving && health > 0) {
+          if (insideHome === null) {
+            const nearby = nearbyHomeIndex();
+            if (nearby === null) { notify("Move closer to a guesthouse door to go inside."); break; }
+            const home = HOMES[nearby];
+            insideHome = nearby;
+            interior.position.set(home.x, 0, home.z);
+            interior.visible = true;
+            avatar.position.set(home.x, 0, home.z + 6.2);
+            heading = Math.PI;
+            avatar.rotation.y = heading;
+            footSpeed = 0;
+            notify(`Welcome to the ${home.name}.`);
+          } else {
+            const home = HOMES[insideHome];
+            interior.visible = false;
+            avatar.position.set(home.x, 0, home.z + 8.2);
+            heading = 0;
+            avatar.rotation.y = heading;
+            footSpeed = 0;
+            insideHome = null;
+            notify("Back outside.");
+          }
+        }
+        break;
     }
     emitStats();
   }
@@ -1683,6 +1770,7 @@ export function createGame(
     elapsed += dt;
     oceanTime.value = elapsed;
     foam.position.y = Math.sin(elapsed * 0.8) * 0.035;
+    gameMinutes = (gameMinutes + dt * 3) % 1440;
     if (health <= 0) return;
     messageRemaining = Math.max(0, messageRemaining - dt);
     if (messageRemaining === 0) message = "";
@@ -1720,6 +1808,7 @@ export function createGame(
     const turn = Number(keys.has("a")) - Number(keys.has("d"));
     const position = player();
     if (driving) {
+      stamina = Math.min(100, stamina + dt * 14);
       const spec = VEHICLES[vehicleIndex];
       const onRoad = nearRoad(position.x, position.z, 0);
       const offroad = spec.shape === "offroad";
@@ -1768,7 +1857,8 @@ export function createGame(
       wheelRolls.forEach((wheel) => { wheel.rotation.x -= traveled / (offroad ? 0.525 : 0.43); });
     } else {
       heading += turn * 2.3 * dt;
-      footSpeed = THREE.MathUtils.damp(footSpeed, forward * (keys.has("shift") ? 5.5 : 2.5), forward ? 7 : 10, dt);
+      const canSprint = keys.has("shift") && stamina > 0.5;
+      footSpeed = THREE.MathUtils.damp(footSpeed, forward * (canSprint ? 5.5 : 2.5), forward ? 7 : 10, dt);
       if (Math.abs(footSpeed) < 0.015) footSpeed = 0;
       const startX = position.x;
       const startZ = position.z;
@@ -1785,6 +1875,8 @@ export function createGame(
       footSpeed = dt > 0 ? traveled / dt * motionSign : 0;
       const moving = traveled > 0.0001;
       const running = Math.abs(footSpeed) > 3.2;
+      if (canSprint && running) stamina = Math.max(0, stamina - dt * 20);
+      else stamina = Math.min(100, stamina + dt * (running ? 6 : 14));
       gait += traveled * (running ? 2.8 : 3.8);
       const stride = Math.min(1, Math.abs(footSpeed) / (running ? 5.5 : 2.5));
       legs.forEach(({ hip, knee, ankle }, index) => {
@@ -1808,6 +1900,18 @@ export function createGame(
       car.rotation.z = THREE.MathUtils.damp(car.rotation.z, 0, 5, dt);
     }
     if (keys.has("f") && WEAPONS[weaponIndex].automatic) fire();
+    if (missionIndex !== -1) {
+      const target = MISSIONS[missionIndex];
+      const distance = Math.hypot(position.x - target.x, position.z - target.z);
+      const modeOk = (target.mode === "car" && driving) || (target.mode === "foot" && !driving);
+      if (modeOk && distance < 6) {
+        credits += target.reward;
+        missionsCompleted++;
+        notify(`Objective complete: ${target.name}. +${target.reward} credits.`);
+        missionIndex = -1;
+        missionMarker.visible = false;
+      }
+    }
     sun.position.set(position.x - 100, 170, position.z - 90);
     sun.target.position.set(position.x, 0, position.z);
     updateCamera(dt);

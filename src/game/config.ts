@@ -64,6 +64,7 @@ export type GameStats = {
   district: number;
   driving: boolean;
   ammo: number;
+  weaponAmmo: readonly number[];
   hits: number;
   x: number;
   z: number;
@@ -77,14 +78,16 @@ export type GameStats = {
   missionDistance: number;
   credits: number;
   health: number;
+  stamina: number;
   fuel: number;
+  clock: string;
   nearbyStation: number | null;
   canEnterCar: boolean;
   weaponIndex: number;
   reloading: boolean;
   message: string;
 };
-export const INITIAL_STATS: GameStats = { speed: 0, district: 7, driving: true, ammo: 12, hits: 0, x: 0, z: 0, mode: "car", altitude: 0, nearbyHome: null, insideHome: null, missionIndex: -1, missionsCompleted: 0, missionProgress: 0, missionDistance: 0, credits: 100, health: 100, fuel: 65, nearbyStation: null, canEnterCar: false, weaponIndex: 0, reloading: false, message: "" };
+export const INITIAL_STATS: GameStats = { speed: 0, district: 7, driving: true, ammo: 12, weaponAmmo: WEAPONS.map((weapon) => weapon.capacity), hits: 0, x: 0, z: 0, mode: "car", altitude: 0, nearbyHome: null, insideHome: null, missionIndex: -1, missionsCompleted: 0, missionProgress: 0, missionDistance: 0, credits: 100, health: 100, stamina: 100, fuel: 65, clock: "06:00", nearbyStation: null, canEnterCar: false, weaponIndex: 0, reloading: false, message: "" };
 export type GameCommand =
   | { type: "vehicle"; index: number }
   | { type: "travel"; index: number }
