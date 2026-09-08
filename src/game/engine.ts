@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { DISTRICTS, HOMES, MISSIONS, TRANSPORTS, VEHICLES, WEAPONS, type GameCommand, type GameController, type GameStats, type TransportMode } from "./config";
+import { DISTRICTS, FUEL_PRICE, FUEL_STATIONS, HOMES, VEHICLES, WEAPONS, type GameCommand, type GameController, type GameStats, type TransportMode } from "./config";
 
 type Road = { ax: number; az: number; bx: number; bz: number; width: number };
-type Collider = { minX: number; maxX: number; minZ: number; maxZ: number; height: number };
+type Collider = { minX: number; maxX: number; minZ: number; maxZ: number; height: number; minY?: number };
 type Target = { mesh: THREE.Mesh; ring: THREE.Mesh; position: THREE.Vector3; cooldown: number };
 
 export function createGame(
@@ -26,7 +26,7 @@ export function createGame(
   const canvas = renderer.domElement;
   canvas.style.cssText = "display:block;width:100%;height:100%;position:absolute;inset:0;touch-action:none;outline:none;";
   canvas.tabIndex = 0;
-  canvas.setAttribute("aria-label", "Solmere free roam. WASD to move and steer, Q/Z ascend/descend, Space brake, Shift boost, E enter/exit transport, G enter/exit home, F fire outdoors. Drag to aim on foot.");
+  canvas.setAttribute("aria-label", "Solmere free roam. WASD to move and steer, Space brake, Shift run or boost, E enter/exit nearby stopped car, F fire on foot, R reload, 1 through 6 select gun. Drag to aim on foot.");
   container.appendChild(canvas);
 
   const geometries = new Set<THREE.BufferGeometry>();
@@ -267,6 +267,32 @@ export function createGame(
   const homeColliders: Collider[] = HOMES.map((home) => ({ minX: home.x - 6, maxX: home.x + 6, minZ: home.z - 7, maxZ: home.z + 7, height: 7.6 }));
   const colliders: Collider[] = [...homeColliders];
   const nearHome = (x: number, z: number, margin = 0) => HOMES.some((home) => Math.abs(x - home.x) < 9 + margin && Math.abs(z - home.z) < 12 + margin);
+  const nearStation = (x: number, z: number, margin = 0) => FUEL_STATIONS.some((station) => Math.abs(x - station.x) < 12 + margin && Math.abs(z - station.z) < 13 + margin);
+  // Reserve the entire forecourt, including its road approach, before random scenery.
+  for (const station of FUEL_STATIONS) {
+    const { x, z } = station;
+    mesh(box, asphalt, x - 4, 0.025, z, 25, 0.04, 23).receiveShadow = true;
+    mesh(roundedBox, white, x + 5, 0.14, z, 2.6, 0.25, 5.4);
+    for (const dz of [-4.8, 4.8]) {
+      mesh(cylinder, chrome, x + 7, 2.65, z + dz, 0.14, 5.3, 0.14);
+      colliders.push({ minX: x + 6.8, maxX: x + 7.2, minZ: z + dz - 0.2, maxZ: z + dz + 0.2, height: 5.3 });
+    }
+    mesh(roundedBox, green, x + 2, 5.4, z, 13, 0.42, 13).castShadow = true;
+    mesh(box, white, x + 2, 5.14, z, 12.5, 0.08, 12.5);
+    for (const dz of [-1.5, 1.5]) {
+      mesh(roundedBox, green, x + 5, 0.75, z + dz, 1.3, 1.3, 0.85);
+      mesh(roundedBox, white, x + 5, 1.7, z + dz, 1.4, 0.8, 0.9);
+      mesh(roundedBox, glass, x + 4.28, 1.83, z + dz, 0.025, 0.26, 0.58);
+      for (let i = 0; i < 3; i++) mesh(sphere, gold, x + 4.26, 1.55, z + dz - 0.18 + i * 0.18, 0.025, 0.035, 0.035);
+      const hosePoints = [new THREE.Vector3(x + 5, 1.9, z + dz + 0.5), new THREE.Vector3(x + 4.1, 0.4, z + dz + 0.7), new THREE.Vector3(x + 3.95, 0.5, z + dz), new THREE.Vector3(x + 4.2, 1.35, z + dz)];
+      mesh(geometry(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(hosePoints), 20, 0.035, 6, false)), tire, 0, 0, 0);
+      mesh(roundedBox, dark, x + 4.2, 1.4, z + dz, 0.12, 0.3, 0.15).rotation.z = -0.3;
+    }
+    colliders.push({ minX: x + 3.8, maxX: x + 6.3, minZ: z - 2.7, maxZ: z + 2.7, height: 2.15 });
+    colliders.push({ minX: x - 4.5, maxX: x + 8.5, minZ: z - 6.5, maxZ: z + 6.5, height: 5.61, minY: 5.14 });
+    for (const side of [-1, 1]) mesh(box, white, x + side * 1.7, 0.055, z + 3, 0.1, 0.015, 8);
+    sign(station.name, `PETROL / ${FUEL_PRICE} CREDITS PER LITRE / TOW PAD`, x + 3, z - 9);
+  }
   const buildingMatrices: THREE.Matrix4[][] = [[], [], [], [], []];
   const roofMatrices: THREE.Matrix4[] = [];
   const windowMatrices: THREE.Matrix4[] = [];
@@ -282,7 +308,7 @@ export function createGame(
       const w = 6 + random() * 9;
       const depth = 6 + random() * 8;
       const height = 4 + Math.floor(random() * 3) * 3.2;
-      if (x < -113 || x > 280 || nearRoad(x, z, Math.max(w, depth) * 0.72 + 4) || nearHome(x, z, Math.max(w, depth) / 2)) continue;
+      if (x < -113 || x > 280 || nearRoad(x, z, Math.max(w, depth) * 0.72 + 4) || nearHome(x, z, Math.max(w, depth) / 2) || nearStation(x, z, Math.max(w, depth) / 2)) continue;
       if (Math.hypot(x - district.x - 13, z - district.z + 43) < 23) continue;
       if (colliders.some((c) => x > c.minX - w && x < c.maxX + w && z > c.minZ - depth && z < c.maxZ + depth)) continue;
       colliders.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - depth / 2, maxZ: z + depth / 2, height: height + 2.7 });
@@ -338,7 +364,7 @@ export function createGame(
   batch(roundedBox, terracotta, roofDetails).castShadow = true;
 
   const homePlaster = textured("#f0debd", "plaster");
-  const homeExteriors = HOMES.map((home) => {
+  HOMES.forEach((home) => {
     const house = new THREE.Group();
     house.position.set(home.x, 0, home.z);
     scene.add(house);
@@ -370,7 +396,6 @@ export function createGame(
     for (const x of [-0.45, 0.45]) for (const y of [0.85, 2.1]) mesh(roundedBox, dark, x, y, 8.01, 0.68, 0.85, 0.025, house);
     mesh(sphere, gold, 0.6, 1.5, 8.04, 0.065, 0.065, 0.065, house);
     house.traverse((child) => { if (child instanceof THREE.Mesh) { child.castShadow = true; child.receiveShadow = true; } });
-    return house;
   });
 
   // One reusable roof-cutaway room stays at the entered home's real map coordinates.
@@ -460,7 +485,7 @@ export function createGame(
   for (let i = 0; i < 1000; i++) {
     const x = i < 140 ? -116 + random() * 6 : -110 + random() * 460;
     const z = -955 + random() * 1850;
-    if (nearRoad(x, z, 3) || nearHome(x, z, 5) || colliders.some((c) => x > c.minX - 5 && x < c.maxX + 5 && z > c.minZ - 5 && z < c.maxZ + 5)) continue;
+    if (nearRoad(x, z, 3) || nearHome(x, z, 5) || nearStation(x, z, 5) || colliders.some((c) => x > c.minX - 5 && x < c.maxX + 5 && z > c.minZ - 5 && z < c.maxZ + 5)) continue;
     if (DISTRICTS.some((d) => Math.hypot(x - d.x, z - (d.z - 40)) < 15)) continue;
     const height = 7 + random() * 5;
     const angle = random() * Math.PI * 2;
@@ -489,7 +514,7 @@ export function createGame(
   for (let i = 0; i < 450; i++) {
     const x = -110 + random() * 460;
     const z = -970 + random() * 1890;
-    if (nearRoad(x, z, 10) || nearHome(x, z, 4)) continue;
+    if (nearRoad(x, z, 10) || nearHome(x, z, 4) || nearStation(x, z, 4)) continue;
     shrubs.push(matrix(x, 0.8, z, 1.5 + random() * 2, 1 + random(), 1.5 + random() * 2));
   }
   batch(geometry(new THREE.IcosahedronGeometry(1, 2)), paint("#5e824d"), shrubs);
@@ -612,7 +637,8 @@ export function createGame(
   }
   const wheelPivots: THREE.Group[] = [];
   const wheelRolls: THREE.Group[] = [];
-  const carModels = new Map<number, { model: THREE.Group; pivots: THREE.Group[]; rolls: THREE.Group[] }>();
+  const carBounds = new THREE.Box3();
+  const carModels = new Map<number, { model: THREE.Group; pivots: THREE.Group[]; rolls: THREE.Group[]; bounds: THREE.Box3 }>();
   let vehicleIndex = 0;
   function buildCar(index: number) {
     car.clear();
@@ -624,6 +650,7 @@ export function createGame(
       wheelPivots.push(...cached.pivots);
       wheelRolls.push(...cached.rolls);
       wheelPivots.forEach((pivot) => { pivot.rotation.y = 0; });
+      carBounds.copy(cached.bounds);
       return;
     }
     // Lazily build each of the five models once; switches reuse all geometry and materials.
@@ -781,14 +808,28 @@ export function createGame(
       }
     }
     model.traverse((child) => { if (child instanceof THREE.Mesh) { child.castShadow = true; child.receiveShadow = true; } });
-    carModels.set(index, { model, pivots: [...wheelPivots], rolls: [...wheelRolls] });
+    // Measure the unrotated model, including mirrors, bumpers and the spare wheel.
+    model.updateMatrixWorld(true);
+    carBounds.makeEmpty();
+    model.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
+      const localMatrix = new THREE.Matrix4().copy(model.matrixWorld).invert().multiply(child.matrixWorld);
+      if (child instanceof THREE.InstancedMesh) {
+        const instanceMatrix = new THREE.Matrix4();
+        for (let i = 0; i < child.count; i++) {
+          child.getMatrixAt(i, instanceMatrix);
+          carBounds.union(child.geometry.boundingBox!.clone().applyMatrix4(localMatrix.clone().multiply(instanceMatrix)));
+        }
+      } else carBounds.union(child.geometry.boundingBox!.clone().applyMatrix4(localMatrix));
+    });
+    carModels.set(index, { model, pivots: [...wheelPivots], rolls: [...wheelRolls], bounds: carBounds.clone() });
   }
   buildCar(0);
 
   const motorboat = new THREE.Group();
   const helicopter = new THREE.Group();
   const drone = new THREE.Group();
-  const craft = { car, boat: motorboat, helicopter, drone };
   const rotors: { pivot: THREE.Group; axis: "y" | "x" | "z"; mode: TransportMode; direction: number }[] = [];
   const marinePaint = material(new THREE.MeshPhysicalMaterial({ color: "#e5e5d4", roughness: 0.3, metalness: 0.25, clearcoat: 1 }));
   const aircraftPaint = material(new THREE.MeshPhysicalMaterial({ color: "#c46d3c", roughness: 0.32, metalness: 0.45, clearcoat: 1 }));
@@ -894,7 +935,7 @@ export function createGame(
   const wake = new THREE.Group();
   scene.add(wake);
   const wakeMaterial = material(new THREE.MeshBasicMaterial({ color: "#e4fff0", transparent: true, opacity: 0.4, depthWrite: false }));
-  const wakeRings = Array.from({ length: 10 }, () => {
+  Array.from({ length: 10 }, () => {
     const ring = mesh(ringShape, wakeMaterial, 0, -0.16, 0);
     ring.rotation.x = -Math.PI / 2;
     wake.add(ring);
@@ -930,6 +971,8 @@ export function createGame(
   const hair = paint("#25201c");
   const lips = paint("#80503e");
   const sole = paint("#454545");
+  const stitching = paint("#9f927b");
+  const iris = paint("#51402b");
   const body = new THREE.Group();
   body.position.y = 1.13;
   avatar.add(body);
@@ -959,11 +1002,22 @@ export function createGame(
     mesh(sphere, lips, side * 0.143, -0.015, -0.008, 0.008, 0.023, 0.012, head);
     mesh(sphere, white, side * 0.046, 0.025, -0.11, 0.027, 0.013, 0.012, head);
     mesh(sphere, hair, side * 0.046, 0.025, -0.121, 0.011, 0.011, 0.006, head);
+    mesh(sphere, iris, side * 0.046, 0.025, -0.124, 0.009, 0.01, 0.004, head);
+    mesh(sphere, hair, side * 0.046, 0.025, -0.128, 0.004, 0.006, 0.002, head);
+    mesh(sphere, white, side * 0.046 - 0.003, 0.029, -0.13, 0.002, 0.002, 0.001, head);
+    mesh(sphere, skin, side * 0.065, -0.027, -0.094, 0.042, 0.025, 0.026, head);
+    mesh(sphere, lips, side * 0.014, -0.042, -0.151, 0.007, 0.004, 0.005, head);
     mesh(roundedBox, hair, side * 0.047, 0.047, -0.113, 0.061, 0.012, 0.012, head).rotation.z = side * 0.08;
     mesh(roundedBox, shirt, side * 0.062, 0.325, -0.08, 0.1, 0.055, 0.1, body).rotation.z = side * 0.4;
   }
   for (let i = 0; i < 4; i++) mesh(sphere, wood, 0, -0.015 + i * 0.08, -0.137, 0.009, 0.009, 0.005, body);
   mesh(roundedBox, shirt, -0.11, 0.2, -0.139, 0.1, 0.1, 0.018, body);
+  mesh(roundedBox, stitching, 0.018, 0.1, -0.137, 0.004, 0.39, 0.005, body);
+  mesh(roundedBox, stitching, -0.11, 0.25, -0.15, 0.095, 0.006, 0.005, body);
+  for (const side of [-1, 1]) {
+    link(body, stitching, new THREE.Vector3(side * 0.21, 0.23, -0.08), new THREE.Vector3(side * 0.18, -0.07, -0.07), 0.004);
+    mesh(roundedBox, stitching, side * 0.12, -0.06, -0.131, 0.16, 0.005, 0.004, body);
+  }
   const limbShape = geometry(new THREE.CapsuleGeometry(1, 1, 4, 10));
   const legs: { hip: THREE.Group; knee: THREE.Group; ankle: THREE.Group }[] = [];
   for (const side of [-1, 1]) {
@@ -981,6 +1035,9 @@ export function createGame(
     knee.add(ankle);
     mesh(roundedBox, hair, 0, -0.045, -0.052, 0.17, 0.14, 0.29, ankle);
     mesh(roundedBox, sole, 0, -0.103, -0.055, 0.18, 0.04, 0.3, ankle);
+    mesh(roundedBox, sole, 0, -0.032, -0.172, 0.15, 0.06, 0.035, ankle);
+    mesh(roundedBox, stitching, 0, 0.021, 0.04, 0.06, 0.018, 0.055, ankle);
+    for (const edge of [-1, 1]) mesh(roundedBox, stitching, edge * 0.082, -0.076, -0.055, 0.004, 0.005, 0.24, ankle);
     for (let i = 0; i < 3; i++) mesh(roundedBox, white, 0, 0.026, -0.03 - i * 0.028, 0.085, 0.008, 0.009, ankle);
     legs.push({ hip, knee, ankle });
   }
@@ -1002,6 +1059,13 @@ export function createGame(
     elbow.add(hand);
     mesh(roundedBox, skin, 0, 0, -0.015, 0.073, 0.09, 0.078, hand);
     mesh(sphere, skin, side * 0.034, 0.013, -0.038, 0.023, 0.039, 0.024, hand);
+    for (let finger = 0; finger < 4; finger++) {
+      const x = -0.027 + finger * 0.018;
+      mesh(limbShape, skin, x, -0.045, -0.046, 0.008, 0.016, 0.009, hand).rotation.x = -0.65;
+      mesh(sphere, skin, x, -0.062, -0.058, 0.008, 0.009, 0.012, hand);
+      mesh(roundedBox, stitching, x, -0.04, -0.06, 0.011, 0.012, 0.002, hand);
+    }
+    mesh(roundedBox, stitching, 0, -0.153, 0, 0.15, 0.008, 0.15, shoulder);
     arms.push({ shoulder, elbow, hand, side });
   }
   const weapon = new THREE.Group();
@@ -1022,6 +1086,14 @@ export function createGame(
   mesh(roundedBox, dark, 0, 0.048, 0.18, 0.09, 0.135, 0.21, longWeapon);
   mesh(roundedBox, dark, 0, -0.075, -0.13, 0.065, 0.19, 0.1, longWeapon).rotation.x = -0.15;
   longWeapon.visible = false;
+  const scope = new THREE.Group();
+  weapon.add(scope);
+  mesh(cylinder, dark, 0, 0.2, -0.12, 0.043, 0.26, 0.043, scope).rotation.x = Math.PI / 2;
+  mesh(circle, glass, 0, 0.2, -0.255, 0.036, 0.036, 1, scope).rotation.y = Math.PI;
+  scope.visible = false;
+  const revolverCylinder = mesh(cylinder, brake, 0, 0.055, -0.06, 0.066, 0.11, 0.066, weapon);
+  revolverCylinder.rotation.x = Math.PI / 2;
+  revolverCylinder.visible = false;
   const armDown = new THREE.Vector3(0, -1, 0);
   const armTarget = new THREE.Vector3();
   const armDirection = new THREE.Vector3();
@@ -1031,7 +1103,8 @@ export function createGame(
   function poseArms() {
     // Two-bone IK keeps both palms on the grip while the torso and weapon move together.
     for (const { shoulder, elbow, hand, side } of arms) {
-      armTarget.set(side === 1 ? 0.17 : 0.105, 0.055, side === 1 ? -0.34 : -0.355);
+      armTarget.set(side === 1 ? 0 : -0.065, 0, side === 1 ? 0 : -0.015);
+      armTarget.applyEuler(weapon.rotation).add(weapon.position);
       armDirection.copy(armTarget).sub(shoulder.position);
       const distance = armDirection.length();
       armDirection.normalize();
@@ -1056,10 +1129,13 @@ export function createGame(
   const muzzle = mesh(sphere, muzzleMaterial, 0, 0, 0, 0.3, 0.3, 0.3);
   muzzle.visible = false;
   const projectileGeometry = geometry(new THREE.BufferGeometry());
-  const projectilePositions = new Float32Array(6);
+  const trailCount = 128;
+  const projectilePositions = new Float32Array(trailCount * 6);
+  const trailRemaining = new Float32Array(trailCount);
+  let trailCursor = 0;
   projectileGeometry.setAttribute("position", new THREE.BufferAttribute(projectilePositions, 3));
   const projectileMaterial = material(new THREE.LineBasicMaterial({ color: "#fff0a4", transparent: true, opacity: 0.95, depthTest: true }));
-  const projectile = new THREE.Line(projectileGeometry, projectileMaterial);
+  const projectile = new THREE.LineSegments(projectileGeometry, projectileMaterial);
   projectile.frustumCulled = false;
   projectile.visible = false;
   scene.add(projectile);
@@ -1068,7 +1144,12 @@ export function createGame(
   const direction = new THREE.Vector3();
   const scratch = new THREE.Vector3();
   const endpoint = new THREE.Vector3();
-  const visualOrigin = new THREE.Vector3();
+  const aimDirection = new THREE.Vector3();
+  const spreadRight = new THREE.Vector3();
+  const spreadUp = new THREE.Vector3();
+  const localRay = new THREE.Ray();
+  const carInverse = new THREE.Matrix4();
+  const carYaw = new THREE.Quaternion();
   const collisionBox = new THREE.Box3();
   const collisionPoint = new THREE.Vector3();
 
@@ -1076,10 +1157,19 @@ export function createGame(
   let heading = 0;
   let speed = 0;
   let steering = 0;
+  let footSpeed = 0;
+  let gait = 0;
+  let aimPitch = 0;
+  let recoil = 0;
   let cameraMode = 0;
   let weaponIndex = 0;
   const ammo: number[] = WEAPONS.map((weapon) => weapon.capacity);
   let hits = 0;
+  let credits = 100;
+  let health = 100;
+  const fuel = VEHICLES.map(() => 65);
+  let message = "";
+  let messageRemaining = 0;
   let fireCooldown = 0;
   let reloadRemaining = 0;
   let flashRemaining = 0;
@@ -1116,7 +1206,7 @@ export function createGame(
   function emitStats() {
     const position = player();
     onStats({
-      speed: driving ? Math.round(Math.abs(speed) * 3.6) : 0,
+      speed: Math.round(Math.abs(driving ? speed : footSpeed) * 3.6),
       district: nearestDistrict(),
       driving,
       ammo: ammo[weaponIndex],
@@ -1131,15 +1221,101 @@ export function createGame(
       missionsCompleted: 0,
       missionProgress: 0,
       missionDistance: 0,
-      credits: 0,
+      credits,
+      health,
+      fuel: fuel[vehicleIndex],
+      nearbyStation: nearbyStationIndex(),
+      canEnterCar: canEnterCar(),
+      weaponIndex,
+      reloading: reloadRemaining > 0,
+      message,
     });
+  }
+  function notify(text: string) {
+    message = text;
+    messageRemaining = 4;
+  }
+  function nearbyStationIndex() {
+    let nearest: number | null = null;
+    let distance = 8.000001;
+    FUEL_STATIONS.forEach((station, index) => {
+      const next = Math.hypot(car.position.x - station.x, car.position.z - station.z);
+      if (next <= 8 && next < distance && (driving || Math.hypot(avatar.position.x - station.x, avatar.position.z - station.z) <= 8)) {
+        nearest = index;
+        distance = next;
+      }
+    });
+    return nearest;
   }
   function blocked(x: number, z: number, radius: number) {
     if (x < -136 + radius || x > 390 - radius || z < -985 + radius || z > 935 - radius) return true;
     return colliders.some((c) => {
+      if ((c.minY ?? 0) > 2.5) return false;
       const closestX = THREE.MathUtils.clamp(x, c.minX, c.maxX);
       const closestZ = THREE.MathUtils.clamp(z, c.minZ, c.maxZ);
       return (x - closestX) ** 2 + (z - closestZ) ** 2 < radius * radius;
+    });
+  }
+  function touchesCar(x: number, z: number, radius = 0.3, cx = car.position.x, cz = car.position.z, angle = car.rotation.y) {
+    const dx = x - cx;
+    const dz = z - cz;
+    const localX = dx * Math.cos(angle) - dz * Math.sin(angle);
+    const localZ = dx * Math.sin(angle) + dz * Math.cos(angle);
+    return (localX - THREE.MathUtils.clamp(localX, carBounds.min.x, carBounds.max.x)) ** 2
+      + (localZ - THREE.MathUtils.clamp(localZ, carBounds.min.z, carBounds.max.z)) ** 2 < radius ** 2;
+  }
+  function carBlocked(x: number, z: number, angle: number) {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const hx = (carBounds.max.x - carBounds.min.x) / 2;
+    const hz = (carBounds.max.z - carBounds.min.z) / 2;
+    const midX = (carBounds.max.x + carBounds.min.x) / 2;
+    const midZ = (carBounds.max.z + carBounds.min.z) / 2;
+    const cx = x + midX * cos + midZ * sin;
+    const cz = z - midX * sin + midZ * cos;
+    const extentX = Math.abs(cos) * hx + Math.abs(sin) * hz;
+    const extentZ = Math.abs(sin) * hx + Math.abs(cos) * hz;
+    if (cx - extentX < -136 || cx + extentX > 390 || cz - extentZ < -985 || cz + extentZ > 935) return true;
+    // Separating axes for an oriented vehicle against each static world box.
+    return colliders.some((c) => {
+      if ((c.minY ?? 0) > carBounds.max.y) return false;
+      const dx = (c.minX + c.maxX) / 2 - cx;
+      const dz = (c.minZ + c.maxZ) / 2 - cz;
+      const bx = (c.maxX - c.minX) / 2;
+      const bz = (c.maxZ - c.minZ) / 2;
+      return Math.abs(dx) < extentX + bx && Math.abs(dz) < extentZ + bz
+        && Math.abs(dx * cos - dz * sin) < hx + bx * Math.abs(cos) + bz * Math.abs(sin)
+        && Math.abs(dx * sin + dz * cos) < hz + bx * Math.abs(sin) + bz * Math.abs(cos);
+    });
+  }
+  function clearFootPath(ax: number, az: number, bx: number, bz: number, cx = car.position.x, cz = car.position.z, angle = car.rotation.y) {
+    const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 0.1));
+    for (let i = 0; i <= steps; i++) {
+      const x = THREE.MathUtils.lerp(ax, bx, i / steps);
+      const z = THREE.MathUtils.lerp(az, bz, i / steps);
+      if (blocked(x, z, 0.3) || touchesCar(x, z, 0.3, cx, cz, angle)) return false;
+    }
+    return true;
+  }
+  function doorPosition(side: number, cx = car.position.x, cz = car.position.z, angle = car.rotation.y, offset = 0.36) {
+    const x = side < 0 ? carBounds.min.x - offset : carBounds.max.x + offset;
+    return new THREE.Vector3(cx + x * Math.cos(angle) - 0.1 * Math.sin(angle), 0, cz - x * Math.sin(angle) - 0.1 * Math.cos(angle));
+  }
+  function safeExit(cx = car.position.x, cz = car.position.z, angle = car.rotation.y) {
+    for (const side of [1, -1]) {
+      const door = doorPosition(side, cx, cz, angle);
+      for (const offset of [0.7, 0.36, 1.2]) {
+        const candidate = doorPosition(side, cx, cz, angle, offset);
+        if (clearFootPath(door.x, door.z, candidate.x, candidate.z, cx, cz, angle)) return candidate;
+      }
+    }
+    return null;
+  }
+  function canEnterCar() {
+    if (driving || health <= 0 || Math.abs(speed) >= 2 || avatar.position.distanceTo(car.position) > 3.8) return false;
+    return [-1, 1].some((side) => {
+      const door = doorPosition(side);
+      return clearFootPath(avatar.position.x, avatar.position.z, door.x, door.z);
     });
   }
 
@@ -1157,7 +1333,7 @@ export function createGame(
       const distance = driving ? (cameraMode === 1 ? 7 : 12.5) : (cameraMode === 1 ? 3.5 : 5.8);
       const height = driving ? (cameraMode === 1 ? 3.1 : 5.8) : 3;
       desiredCamera.set(position.x - forwardX * distance, height, position.z - forwardZ * distance);
-      lookAt.set(position.x + forwardX * (driving ? 7 : 9), driving ? 1 : 1.6, position.z + forwardZ * (driving ? 7 : 9));
+      lookAt.set(position.x + forwardX * (driving ? 7 : 9), driving ? 1 : 1.6 + Math.tan(aimPitch + recoil) * 9, position.z + forwardZ * (driving ? 7 : 9));
     }
     const factor = snap ? 1 : 1 - Math.exp(-dt * 6);
     camera.position.lerp(desiredCamera, factor);
@@ -1174,21 +1350,25 @@ export function createGame(
     pointerId = null;
   }
   function placePlayer(x: number, z: number, angle = 0) {
+    if (carBlocked(x, z, angle)) { notify("No safe parking space at that destination."); return false; }
+    const exit = driving ? null : safeExit(x, z, angle);
+    if (!driving && !exit) { notify("No safe place to stand beside the car."); return false; }
     car.position.set(x, 0, z);
-    avatar.position.copy(car.position);
-    if (!driving) {
-      const nx = x + Math.cos(angle) * 3.2;
-      const nz = z - Math.sin(angle) * 3.2;
-      if (!blocked(nx, nz, 0.5)) avatar.position.set(nx, 0, nz);
-    }
+    avatar.position.copy(exit ?? car.position);
     car.rotation.set(0, angle, 0);
     avatar.rotation.set(0, angle, 0);
     heading = angle;
     speed = 0;
+    footSpeed = 0;
+    recoil = aimPitch = 0;
     clearInput();
     flashRemaining = 0;
+    trailRemaining.fill(0);
+    projectilePositions.fill(0);
+    projectileGeometry.getAttribute("position").needsUpdate = true;
     muzzle.visible = projectile.visible = false;
     updateCamera(0, true);
+    return true;
   }
   function resetToRoad() {
     const position = player();
@@ -1203,83 +1383,122 @@ export function createGame(
       const x = road.ax + dx * t;
       const z = road.az + dz * t;
       const distance = Math.hypot(position.x - x, position.z - z);
-      if (distance >= nearestDistance || blocked(x, z, 2.35)) continue;
+      const angle = Math.atan2(-dx, -dz);
+      const spawnHeading = Math.cos(heading - angle) >= 0 ? angle : angle + Math.PI;
+      if (distance >= nearestDistance || carBlocked(x, z, spawnHeading) || (!driving && !safeExit(x, z, spawnHeading))) continue;
       nearestDistance = distance;
       nearestX = x;
       nearestZ = z;
-      const angle = Math.atan2(-dx, -dz);
-      nearestHeading = Math.cos(heading - angle) >= 0 ? angle : angle + Math.PI;
+      nearestHeading = spawnHeading;
     }
-    placePlayer(nearestX, nearestZ, nearestHeading);
+    if (!Number.isFinite(nearestDistance)) { notify("No safe road recovery position found."); return false; }
+    return placePlayer(nearestX, nearestZ, nearestHeading);
   }
   function toggleDrive() {
-    clearInput();
-    speed = 0;
+    // The loadout panel issues this explicit command before it unpauses the game.
+    if (health <= 0) return;
     if (driving) {
-      avatar.position.copy(car.position);
-      const offsets = [[3.2, 0], [-3.2, 0], [0, 4], [0, -4]];
-      for (const [x, z] of offsets) {
-        const nx = car.position.x + x * Math.cos(heading) + z * Math.sin(heading);
-        const nz = car.position.z - x * Math.sin(heading) + z * Math.cos(heading);
-        if (!blocked(nx, nz, 0.5)) { avatar.position.set(nx, 0, nz); break; }
-      }
+      if (Math.abs(speed) >= 2) { notify("Slow below 2 m/s before leaving the car."); return; }
+      const exit = safeExit();
+      if (!exit) { notify("Both doors are blocked. Park somewhere with a safe exit."); return; }
+      avatar.position.copy(exit);
       avatar.rotation.y = heading;
     } else {
+      if (!canEnterCar()) { notify("Walk within 3.8 m of the car with a clear path to a door."); return; }
       heading = car.rotation.y;
     }
+    clearInput();
+    speed = footSpeed = 0;
+    reloadRemaining = 0;
+    recoil = aimPitch = 0;
     driving = !driving;
     avatar.visible = !driving;
     updateCamera(0, true);
   }
+  function obstructionDistance(ray: THREE.Ray, range: number) {
+    let distance = range;
+    for (const collider of colliders) {
+      collisionBox.min.set(collider.minX, collider.minY ?? 0, collider.minZ);
+      collisionBox.max.set(collider.maxX, collider.height, collider.maxZ);
+      if (collisionBox.containsPoint(ray.origin)) return 0;
+      if (ray.intersectBox(collisionBox, collisionPoint)) distance = Math.min(distance, ray.origin.distanceTo(collisionPoint));
+    }
+    carYaw.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, car.rotation.y);
+    carInverse.makeRotationFromQuaternion(carYaw).setPosition(car.position).invert();
+    localRay.copy(ray).applyMatrix4(carInverse);
+    if (carBounds.containsPoint(localRay.origin)) return 0;
+    if (localRay.intersectBox(carBounds, collisionPoint)) distance = Math.min(distance, localRay.origin.distanceTo(collisionPoint));
+    if (ray.direction.y < 0) distance = Math.min(distance, Math.max(0, -ray.origin.y / ray.direction.y));
+    return distance;
+  }
   function fire() {
-    if (paused || fireCooldown > 0 || reloadRemaining > 0 || ammo[weaponIndex] <= 0) return;
+    if (paused || driving || health <= 0 || fireCooldown > 0 || reloadRemaining > 0) return;
+    if (ammo[weaponIndex] <= 0) { notify("Magazine empty. Press R to reload."); return; }
+    const spec = WEAPONS[weaponIndex];
+    weapon.rotation.x = aimPitch + recoil;
+    avatar.updateMatrixWorld(true);
+    muzzleTip.getWorldPosition(origin);
+    weapon.getWorldDirection(aimDirection).negate();
+    // A barrel pushed through cover must not let its muzzle fire from the other side.
+    scratch.set(avatar.position.x, origin.y, avatar.position.z);
+    direction.copy(origin).sub(scratch).normalize();
+    raycaster.set(scratch, direction);
+    if (obstructionDistance(raycaster.ray, scratch.distanceTo(origin)) < scratch.distanceTo(origin) - 0.001) {
+      notify("Barrel obstructed. Step back from cover.");
+      return;
+    }
     ammo[weaponIndex]--;
-    fireCooldown = WEAPONS[weaponIndex].cooldown;
-    const position = player();
-    direction.set(-Math.sin(heading), 0, -Math.cos(heading));
-    origin.set(position.x, 2, position.z).addScaledVector(direction, driving ? 2.8 : 0.7);
-    const range = weaponIndex === 2 ? 62 : weaponIndex === 1 ? 150 : 105;
+    fireCooldown = spec.cooldown;
     let best: Target | undefined;
-    let bestScore = Math.cos(THREE.MathUtils.degToRad(15));
+    let bestScore = Math.cos(THREE.MathUtils.degToRad(10));
     for (const target of targets) {
       if (target.cooldown > 0) continue;
       scratch.copy(target.position).sub(origin);
       const distance = scratch.length();
-      const alignment = scratch.normalize().dot(direction);
-      if (distance < range && alignment > bestScore) { best = target; bestScore = alignment; }
+      const alignment = scratch.normalize().dot(aimDirection);
+      if (distance > spec.range || alignment <= bestScore) continue;
+      raycaster.set(origin, scratch);
+      if (obstructionDistance(raycaster.ray, distance) < distance - 0.15) continue;
+      best = target;
+      bestScore = alignment;
     }
-    if (best) direction.copy(best.position).sub(origin).normalize();
-    raycaster.set(origin, direction);
-    raycaster.far = range;
-    let obstruction = range;
-    for (const collider of colliders) {
-      collisionBox.min.set(collider.minX, 0, collider.minZ);
-      collisionBox.max.set(collider.maxX, collider.height, collider.maxZ);
-      if (raycaster.ray.intersectBox(collisionBox, collisionPoint)) obstruction = Math.min(obstruction, origin.distanceTo(collisionPoint));
-    }
+    if (best) aimDirection.copy(best.position).sub(origin).normalize();
+    spreadRight.crossVectors(aimDirection, THREE.Object3D.DEFAULT_UP).normalize();
+    spreadUp.crossVectors(spreadRight, aimDirection).normalize();
     scene.updateMatrixWorld(true);
-    const intersection = raycaster.intersectObjects(targetMeshes, false).find((hit) => {
-      const target = targets.find((candidate) => candidate.mesh === hit.object);
-      return target && target.cooldown <= 0;
-    });
-    endpoint.copy(origin).addScaledVector(direction, obstruction);
-    if (intersection && intersection.distance < obstruction) {
-      const target = targets.find((candidate) => candidate.mesh === intersection.object)!;
-      hits++;
-      target.cooldown = 1.7;
-      target.mesh.scale.setScalar(0.7);
-      target.ring.material = gold;
-      endpoint.copy(intersection.point);
+    raycaster.far = spec.range;
+    for (let pellet = 0; pellet < spec.pellets; pellet++) {
+      const scatter = Math.sqrt(Math.random()) * Math.tan(spec.spread);
+      const angle = Math.random() * Math.PI * 2;
+      direction.copy(aimDirection).addScaledVector(spreadRight, Math.cos(angle) * scatter)
+        .addScaledVector(spreadUp, Math.sin(angle) * scatter).normalize();
+      raycaster.set(origin, direction);
+      const obstruction = obstructionDistance(raycaster.ray, spec.range);
+      const intersection = raycaster.intersectObjects(targetMeshes, false)[0];
+      endpoint.copy(origin).addScaledVector(direction, obstruction);
+      if (intersection && intersection.distance < obstruction) {
+        endpoint.copy(intersection.point);
+        const target = targets.find((candidate) => candidate.mesh === intersection.object)!;
+        if (target.cooldown <= 0) {
+          hits++;
+          credits += 10;
+          target.cooldown = 1.7;
+          target.mesh.scale.setScalar(0.7);
+          target.ring.material = gold;
+          if (hits % 5 === 0) { credits += 50; notify("Target hit +10 credits. Five-hit bonus +50 credits!"); }
+          else notify("Target hit +10 credits.");
+        }
+      }
+      projectilePositions.set([origin.x, origin.y, origin.z, endpoint.x, endpoint.y, endpoint.z], trailCursor * 6);
+      trailRemaining[trailCursor] = 0.12;
+      trailCursor = (trailCursor + 1) % trailCount;
     }
-    // Preserve the established aim-assist ray, but emit the visible effect from the held barrel.
-    if (driving) visualOrigin.copy(origin);
-    else muzzleTip.getWorldPosition(visualOrigin);
-    projectilePositions.set([visualOrigin.x, visualOrigin.y, visualOrigin.z, endpoint.x, endpoint.y, endpoint.z]);
     projectileGeometry.getAttribute("position").needsUpdate = true;
-    muzzle.position.copy(visualOrigin);
+    muzzle.position.copy(origin);
+    recoil = Math.min(0.18, recoil + (spec.pellets > 1 || weaponIndex >= 4 ? 0.065 : 0.028));
     flashRemaining = 0.09;
-    projectile.visible = true;
-    muzzle.visible = true;
+    projectile.visible = muzzle.visible = true;
+    emitStats();
   }
 
   function normalizeKey(key: string) {
@@ -1288,6 +1507,7 @@ export function createGame(
       keyw: "w", keya: "a", keys: "s", keyd: "d", keye: "e", keyr: "r", keyf: "f", keyc: "c",
       arrowup: "w", arrowdown: "s", arrowleft: "a", arrowright: "d", up: "w", down: "s", left: "a", right: "d",
       " ": "space", spacebar: "space", shiftleft: "shift", shiftright: "shift", digit1: "1", digit2: "2", digit3: "3",
+      digit4: "4", digit5: "5", digit6: "6",
     };
     return aliases[lower] ?? lower;
   }
@@ -1298,23 +1518,37 @@ export function createGame(
       paused = action.value;
       clearInput();
       lastTime = performance.now();
+      emitStats();
       return;
     }
     if (action.type === "input") {
       const key = normalizeKey(action.key);
       if (!action.pressed) { keys.delete(key); return; }
-      if (paused || keys.has(key)) return;
+      if (paused || health <= 0 || keys.has(key)) return;
       keys.add(key);
       if (key === "e") command({ type: "toggle-drive" });
       else if (key === "r") command({ type: "reload" });
-      else if (key === "f") fire();
+      else if (key === "f") command({ type: "fire" });
       else if (key === "c") command({ type: "camera" });
-      else if (["1", "2", "3"].includes(key)) command({ type: "weapon", index: Number(key) - 1 });
+      else if (["1", "2", "3", "4", "5", "6"].includes(key)) command({ type: "weapon", index: Number(key) - 1 });
+      return;
+    }
+    if (health <= 0 && action.type !== "respawn" && action.type !== "camera") {
+      notify("Health depleted. Use Respawn to recover; Reset Ride does not heal.");
+      emitStats();
       return;
     }
     switch (action.type) {
       case "vehicle":
-        if (validIndex(action.index, VEHICLES.length)) { vehicleIndex = action.index; buildCar(vehicleIndex); speed = 0; }
+        if (validIndex(action.index, VEHICLES.length)) {
+          if (Math.abs(speed) >= 2) { notify("Stop before changing cars."); break; }
+          const previous = vehicleIndex;
+          buildCar(action.index);
+          if (carBlocked(car.position.x, car.position.z, car.rotation.y) || (!driving && touchesCar(avatar.position.x, avatar.position.z))) {
+            buildCar(previous);
+            notify("Not enough space for that car. Move to an open road.");
+          } else { vehicleIndex = action.index; speed = 0; }
+        }
         break;
       case "travel":
         if (validIndex(action.index, DISTRICTS.length)) {
@@ -1326,44 +1560,79 @@ export function createGame(
         if (validIndex(action.index, WEAPONS.length)) {
           weaponIndex = action.index;
           reloadRemaining = 0;
-          longWeapon.visible = weaponIndex !== 0;
-          barrel.scale.y = weaponIndex === 0 ? 0.16 : weaponIndex === 1 ? 0.4 : 0.3;
-          barrel.position.z = weaponIndex === 0 ? -0.3 : weaponIndex === 1 ? -0.42 : -0.37;
+          longWeapon.visible = weaponIndex > 0 && weaponIndex < 5;
+          scope.visible = weaponIndex === 4;
+          revolverCylinder.visible = weaponIndex === 5;
+          barrel.scale.y = [0.16, 0.4, 0.34, 0.23, 0.6, 0.24][weaponIndex];
+          barrel.scale.x = barrel.scale.z = weaponIndex === 2 ? 0.045 : 0.032;
+          barrel.position.z = -0.22 - barrel.scale.y / 2;
           muzzleTip.position.z = barrel.position.z - barrel.scale.y / 2 - 0.01;
+          weapon.rotation.set(aimPitch + recoil, 0, 0);
+          notify(`${WEAPONS[weaponIndex].name} equipped.`);
         }
         break;
-      case "reset": resetToRoad(); break;
+      case "reset": if (resetToRoad()) notify("Recovered to a safe road. Health, credits and fuel unchanged."); break;
+      case "respawn":
+        if (health <= 0 && resetToRoad()) {
+          health = 100;
+          reloadRemaining = 0;
+          notify("Respawned with 100 health. Fuel and credits unchanged.");
+        }
+        break;
+      case "station-travel":
+        if (validIndex(action.index, FUEL_STATIONS.length)) {
+          const station = FUEL_STATIONS[action.index];
+          if (placePlayer(station.x, station.z + 4)) notify(`Towed to ${station.name}. Fuel sold separately.`);
+        }
+        break;
+      case "refuel": {
+        if (Math.abs(speed) >= 0.1 || Math.abs(footSpeed) >= 0.1) { notify("Stop before refuelling."); break; }
+        if (nearbyStationIndex() === null) { notify("Bring the car within 8 m of a station and stay nearby."); break; }
+        const litres = Math.max(0, Math.min(10, 100 - fuel[vehicleIndex], credits / FUEL_PRICE));
+        if (litres <= 0) { notify(fuel[vehicleIndex] >= 100 ? "The tank is full." : "Not enough credits for petrol. Earn credits at the targets."); break; }
+        fuel[vehicleIndex] = Math.min(100, fuel[vehicleIndex] + litres);
+        credits = Math.max(0, credits - litres * FUEL_PRICE);
+        notify(`Bought ${litres.toFixed(1)} L for ${(litres * FUEL_PRICE).toFixed(1)} credits.`);
+        break;
+      }
       case "toggle-drive": toggleDrive(); break;
       case "reload":
-        if (!paused && reloadRemaining <= 0 && ammo[weaponIndex] < WEAPONS[weaponIndex].capacity) reloadRemaining = weaponIndex === 2 ? 1.25 : 0.9;
+        if (!paused && !driving && reloadRemaining <= 0 && ammo[weaponIndex] < WEAPONS[weaponIndex].capacity) {
+          reloadRemaining = WEAPONS[weaponIndex].reload;
+          notify(`Reloading ${WEAPONS[weaponIndex].name}...`);
+        }
         break;
       case "fire": fire(); break;
       case "camera": cameraMode = (cameraMode + 1) % 3; updateCamera(0, true); break;
     }
+    emitStats();
   }
 
   let pointerId: number | null = null;
   let pointerX = 0;
+  let pointerY = 0;
   let pointerStartX = 0;
   let pointerStartY = 0;
   let pointerDragged = false;
   function pointerDown(event: PointerEvent) {
-    if (paused || event.button !== 0 || pointerId !== null) return;
+    if (paused || health <= 0 || event.button !== 0 || pointerId !== null) return;
     canvas.focus({ preventScroll: true });
     pointerId = event.pointerId;
     pointerX = pointerStartX = event.clientX;
-    pointerStartY = event.clientY;
+    pointerY = pointerStartY = event.clientY;
     pointerDragged = false;
     canvas.setPointerCapture(event.pointerId);
   }
   function pointerMove(event: PointerEvent) {
-    if (paused || event.pointerId !== pointerId) return;
+    if (paused || health <= 0 || event.pointerId !== pointerId) return;
     if (Math.hypot(event.clientX - pointerStartX, event.clientY - pointerStartY) > 5) pointerDragged = true;
     if (!driving && pointerDragged) {
       heading -= (event.clientX - pointerX) * 0.006;
+      aimPitch = THREE.MathUtils.clamp(aimPitch - (event.clientY - pointerY) * 0.004, -0.55, 0.65);
       avatar.rotation.y = heading;
     }
     pointerX = event.clientX;
+    pointerY = event.clientY;
   }
   function pointerUp(event: PointerEvent) {
     if (event.pointerId !== pointerId) return;
@@ -1371,10 +1640,10 @@ export function createGame(
     const shouldFire = !pointerDragged && !paused && document.elementFromPoint(event.clientX, event.clientY) === canvas;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     pointerId = null;
-    if (shouldFire) fire();
+    if (shouldFire) command({ type: "fire" });
   }
   function pointerCancel() { pointerId = null; }
-  const handledKeys = new Set(["w", "a", "s", "d", "space", "shift", "e", "r", "f", "c", "1", "2", "3"]);
+  const handledKeys = new Set(["w", "a", "s", "d", "space", "shift", "e", "r", "f", "c", "1", "2", "3", "4", "5", "6"]);
   function keyboard(event: KeyboardEvent) {
     const key = normalizeKey(event.key);
     if (!handledKeys.has(key)) return;
@@ -1414,16 +1683,32 @@ export function createGame(
     elapsed += dt;
     oceanTime.value = elapsed;
     foam.position.y = Math.sin(elapsed * 0.8) * 0.035;
+    if (health <= 0) return;
+    messageRemaining = Math.max(0, messageRemaining - dt);
+    if (messageRemaining === 0) message = "";
+    recoil = THREE.MathUtils.damp(recoil, 0, 8, dt);
     fireCooldown = Math.max(0, fireCooldown - dt);
     if (reloadRemaining > 0) {
-      reloadRemaining -= dt;
-      if (reloadRemaining <= 0) ammo[weaponIndex] = WEAPONS[weaponIndex].capacity;
+      reloadRemaining = Math.max(0, reloadRemaining - dt);
+      if (reloadRemaining === 0) {
+        ammo[weaponIndex] = WEAPONS[weaponIndex].capacity;
+        notify(`${WEAPONS[weaponIndex].name} reloaded.`);
+        emitStats();
+      }
     }
-    if (keys.has("f")) fire();
     flashRemaining = Math.max(0, flashRemaining - dt);
-    muzzle.visible = projectile.visible = flashRemaining > 0;
+    muzzle.visible = flashRemaining > 0;
     muzzleMaterial.opacity = flashRemaining / 0.09;
-    projectileMaterial.opacity = flashRemaining / 0.09;
+    let activeTrails = false;
+    for (let i = 0; i < trailCount; i++) {
+      if (trailRemaining[i] <= 0) continue;
+      trailRemaining[i] = Math.max(0, trailRemaining[i] - dt);
+      if (trailRemaining[i] === 0) {
+        projectilePositions.fill(0, i * 6, i * 6 + 6);
+        projectileGeometry.getAttribute("position").needsUpdate = true;
+      } else activeTrails = true;
+    }
+    projectile.visible = activeTrails;
     for (const target of targets) {
       if (target.cooldown > 0) {
         target.cooldown = Math.max(0, target.cooldown - dt);
@@ -1440,48 +1725,81 @@ export function createGame(
       const offroad = spec.shape === "offroad";
       const boost = keys.has("shift") && forward > 0;
       const maxSpeed = spec.speed / 3.6 * (onRoad ? 1 : offroad ? 0.82 : 0.56);
-      if (forward) speed += forward * (boost ? 19 : 12) * dt;
-      else speed = THREE.MathUtils.damp(speed, 0, 0.65, dt);
+      if (forward && fuel[vehicleIndex] > 0) speed += forward * (boost ? 19 : 12) * dt;
+      else speed = THREE.MathUtils.damp(speed, 0, forward * speed < 0 ? 7 : 0.65, dt);
       if (keys.has("space")) speed = THREE.MathUtils.damp(speed, 0, 7, dt);
       speed = THREE.MathUtils.clamp(speed, -12, maxSpeed * (boost ? 1.14 : 1));
       if (Math.abs(speed) < 0.03) speed = 0;
       steering = THREE.MathUtils.damp(steering, turn, 8, dt);
-      heading += steering * Math.min(Math.abs(speed) / 7, 1) * (1.65 - Math.min(Math.abs(speed) / 75, 0.8)) * (spec.handling / 88) * Math.sign(speed) * dt;
+      const turnAngle = steering * Math.min(Math.abs(speed) / 7, 1) * (1.65 - Math.min(Math.abs(speed) / 75, 0.8)) * (spec.handling / 88) * Math.sign(speed) * dt;
       const distance = speed * dt;
       // Substeps keep a boosted car from tunneling through narrow building corners.
       const steps = Math.max(1, Math.ceil(Math.abs(distance) / 0.65));
+      let traveled = 0;
       for (let i = 0; i < steps; i++) {
-        const x = position.x - Math.sin(heading) * distance / steps;
-        const z = position.z - Math.cos(heading) * distance / steps;
-        if (blocked(x, z, 2.35)) { speed = 0; break; }
+        const nextHeading = heading + turnAngle / steps;
+        const x = position.x - Math.sin(nextHeading) * distance / steps;
+        const z = position.z - Math.cos(nextHeading) * distance / steps;
+        if (carBlocked(x, z, nextHeading)) {
+          const impact = Math.abs(speed);
+          speed = 0;
+          if (impact > 8) {
+            const damage = Math.min(100, Math.ceil((impact - 8) * 2.5));
+            health = Math.max(0, health - damage);
+            notify(health > 0 ? `Collision: -${damage} health. Slow down near obstacles.` : "Health depleted. Use Respawn to recover.");
+            if (health <= 0) {
+              clearInput();
+              footSpeed = reloadRemaining = flashRemaining = 0;
+              muzzle.visible = projectile.visible = false;
+            }
+          }
+          break;
+        }
+        heading = nextHeading;
+        traveled += distance / steps;
         position.set(x, 0, z);
       }
+      const previousFuel = fuel[vehicleIndex];
+      fuel[vehicleIndex] = Math.max(0, previousFuel - Math.abs(traveled) * 0.015);
+      if (previousFuel > 0 && fuel[vehicleIndex] === 0 && health > 0) notify("Tank empty. Coast to a stop or tow to a petrol station.");
       car.rotation.y = heading;
       car.rotation.z = THREE.MathUtils.damp(car.rotation.z, -steering * Math.min(Math.abs(speed) / 45, 1) * 0.035, 5, dt);
       wheelPivots.forEach((wheel, index) => { wheel.rotation.y = index < 2 ? steering * 0.35 : 0; });
-      wheelRolls.forEach((wheel) => { wheel.rotation.x -= speed * dt / (offroad ? 0.525 : 0.43); });
+      wheelRolls.forEach((wheel) => { wheel.rotation.x -= traveled / (offroad ? 0.525 : 0.43); });
     } else {
       heading += turn * 2.3 * dt;
-      const velocity = forward * (keys.has("shift") ? 9 : 5);
-      const x = position.x - Math.sin(heading) * velocity * dt;
-      const z = position.z - Math.cos(heading) * velocity * dt;
-      if (!blocked(x, position.z, 0.45)) position.x = x;
-      if (!blocked(position.x, z, 0.45)) position.z = z;
+      footSpeed = THREE.MathUtils.damp(footSpeed, forward * (keys.has("shift") ? 5.5 : 2.5), forward ? 7 : 10, dt);
+      if (Math.abs(footSpeed) < 0.015) footSpeed = 0;
+      const startX = position.x;
+      const startZ = position.z;
+      const steps = Math.max(1, Math.ceil(Math.abs(footSpeed * dt) / 0.1));
+      for (let i = 0; i < steps; i++) {
+        const x = position.x - Math.sin(heading) * footSpeed * dt / steps;
+        const z = position.z - Math.cos(heading) * footSpeed * dt / steps;
+        if (!blocked(x, position.z, 0.3) && !touchesCar(x, position.z)) position.x = x;
+        if (!blocked(position.x, z, 0.3) && !touchesCar(position.x, z)) position.z = z;
+      }
       avatar.rotation.y = heading;
-      const moving = forward !== 0;
-      const running = keys.has("shift");
-      const gait = elapsed * (running ? 14 : 9);
+      const traveled = Math.hypot(position.x - startX, position.z - startZ);
+      const motionSign = Math.sign(footSpeed);
+      footSpeed = dt > 0 ? traveled / dt * motionSign : 0;
+      const moving = traveled > 0.0001;
+      const running = Math.abs(footSpeed) > 3.2;
+      gait += traveled * (running ? 2.8 : 3.8);
+      const stride = Math.min(1, Math.abs(footSpeed) / (running ? 5.5 : 2.5));
       legs.forEach(({ hip, knee, ankle }, index) => {
         const phase = gait + index * Math.PI;
         const swing = Math.sin(phase);
-        hip.rotation.x = THREE.MathUtils.damp(hip.rotation.x, moving ? swing * (running ? 0.75 : 0.48) * forward : 0, 18, dt);
-        knee.rotation.x = THREE.MathUtils.damp(knee.rotation.x, moving ? -Math.max(0, -swing * forward) * (running ? 1.25 : 0.85) - 0.08 : -0.035, 18, dt);
+        hip.rotation.x = THREE.MathUtils.damp(hip.rotation.x, moving ? swing * (running ? 0.75 : 0.48) * motionSign * stride : 0, 18, dt);
+        knee.rotation.x = THREE.MathUtils.damp(knee.rotation.x, moving ? -Math.max(0, -swing * motionSign) * (running ? 1.25 : 0.85) * stride - 0.08 : -0.035, 18, dt);
         ankle.rotation.x = -(hip.rotation.x + knee.rotation.x) * 0.55;
       });
       body.position.y = THREE.MathUtils.damp(body.position.y, 1.13 + (moving ? Math.cos(gait * 2) * 0.025 : Math.sin(elapsed * 1.8) * 0.003), 16, dt);
       body.rotation.z = THREE.MathUtils.damp(body.rotation.z, moving ? Math.sin(gait) * 0.025 : 0, 12, dt);
       body.rotation.y = THREE.MathUtils.damp(body.rotation.y, moving ? Math.sin(gait) * 0.055 : 0, 12, dt);
-      body.rotation.x = THREE.MathUtils.damp(body.rotation.x, (moving && running ? -0.07 : 0) + flashRemaining * 0.4, 16, dt);
+      body.rotation.x = THREE.MathUtils.damp(body.rotation.x, moving && running ? -0.07 : 0, 16, dt);
+      const reloadPose = reloadRemaining > 0 ? Math.sin(Math.PI * reloadRemaining / WEAPONS[weaponIndex].reload) : 0;
+      weapon.rotation.set(aimPitch + recoil - reloadPose * 0.65, 0, reloadPose * -0.35);
       arms.forEach(({ shoulder, side }) => {
         shoulder.position.z = moving ? Math.sin(gait + side * Math.PI / 2) * 0.018 : 0;
       });
@@ -1489,6 +1807,7 @@ export function createGame(
       poseArms();
       car.rotation.z = THREE.MathUtils.damp(car.rotation.z, 0, 5, dt);
     }
+    if (keys.has("f") && WEAPONS[weaponIndex].automatic) fire();
     sun.position.set(position.x - 100, 170, position.z - 90);
     sun.target.position.set(position.x, 0, position.z);
     updateCamera(dt);
@@ -1496,9 +1815,13 @@ export function createGame(
   function frame(now: number) {
     if (disposed) return;
     const wallDelta = Math.max((now - lastTime) / 1000, 0);
-    const dt = Math.min(wallDelta, 0.05);
+    const dt = Math.min(wallDelta, 0.25);
     lastTime = now;
-    if (!paused && !document.hidden) simulate(dt);
+    // Bounded substeps preserve collision stability without slowing timers at low frame rates.
+    if (!paused && !document.hidden) {
+      const steps = Math.max(1, Math.ceil(dt / (1 / 60)));
+      for (let step = 0; step < steps; step++) simulate(dt / steps);
+    }
     renderer.render(scene, camera);
     statsElapsed += wallDelta;
     if (!ready || statsElapsed >= 0.1) {

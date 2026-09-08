@@ -19,7 +19,11 @@ Open http://localhost:3000 and select **Let's drive**.
 - Coastline, animated ocean, palms, buildings, backwater scenery, and decorative hills.
 - Five original procedural cars inspired by BMW, Audi, Jeep, Rolls-Royce, and Defender vehicle categories. Garage changes appearance and arcade handling.
 - Driving, braking, boost, three camera views, walking, collisions, and nearest-road reset.
-- Three fictional weapons, limited magazines, reloads, visible shot trails, and non-graphic target scoring.
+- Six selectable fictional weapons with different firing rates, spread, range, magazine sizes, reload times, recoil, and visible shot trails. Scattergun fires multiple pellets; shots originate at the held muzzle and respect cover.
+- Improved procedural human proportions, facial features, articulated fingers, clothing seams, shoes, and distance-driven walking/aiming animation.
+- Proximity/path-checked car entry, safe stopped-only exits, oriented car collisions, and bounded physics substeps.
+- Health, impact damage, death/recovery, per-car fuel consumption, and fourteen petrol stations.
+- Earn 10 credits per target hit plus 50 every five hits. Start with 100 credits; petrol costs 2 credits/L, purchased up to 10 L per transaction.
 - Responsive map, garage, loadout, pause menu, and touch steering/pedals. Simulation pauses while panels are open.
 
 ## Controls
@@ -32,13 +36,15 @@ Open http://localhost:3000 and select **Let's drive**.
 | E | Exit / return to car |
 | F / click scene | Fire toward heading with light aim assistance |
 | Drag scene on foot | Turn to aim |
-| 1 / 2 / 3 | Switch weapon |
+| 1 through 6 | Switch weapon |
 | R | Reload |
 | C | Change camera |
 | Escape | Pause / resume |
 | Reset Ride button | Return to nearest clear road |
 
-On touch devices, hold L/R to steer and GO/REV to move. Use the footer to exit or return to the car, FIRE to shoot, and the R button to reload. Open Loadout to switch weapons. Return to car is intentionally allowed from anywhere for this prototype.
+On touch devices, hold L/R to steer and GO/REV to move. Use the footer to exit or return to the car, FIRE to shoot, and the R button to reload. Open Loadout to switch weapons. Stop before exiting; walk within 3.8 m of the car with a clear path to enter. You cannot walk through the parked car.
+
+Open **Petrol** to find a station or use free tow recovery. Stop near its pumps and select **Refuel**. Tow and Reset Ride do not heal you, refill fuel, or change your wallet. At zero health, **Recover at the road** restores health without changing money or fuel. Fuel is tracked separately for each car during the session.
 
 ## Verification
 
@@ -50,7 +56,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Playwright covers desktop and mobile layouts, starting, movement, reset, garage selection, district travel, walking, shooting, reload, and pause. Tests use software WebGL in Chromium; actual performance depends on the device GPU.
+Playwright covers desktop/mobile launch accessibility, movement, reset, garage/loadout selection, travel, shooting, reload, pause, refueling and wallet deductions. Deterministic engine tests cover car collision and entry, fuel exhaustion, transaction validation, all weapons, rewards, damage and recovery. Tests use software WebGL in Chromium; actual performance depends on the device GPU.
 
 ## Scope and Limitations
 
@@ -58,7 +64,7 @@ Solmere is not a real place. It is a small procedural, compressed playground wit
 
 Cars are original low-poly interpretations, not branded assets or licensed replicas. No affiliation with the referenced manufacturers is implied. Weapons are fictional gameplay abstractions, not realistic simulations.
 
-No traffic, pedestrians, police, GTA missions, multiplayer, sound, interiors, damage system, or persistence are included. Refreshing starts a new session. Physics and targeting are arcade-style; the camera can pass through scenery. A production statewide game would require geographic data, world streaming, authored assets, audio, a larger gameplay system, optimization, and licensing review.
+No traffic, pedestrians, police, completed missions, multiplayer, sound, or persistence are included. Homes, aircraft, boats and mission definitions have partial scaffolding but are not playable systems yet. Refreshing starts a new session. Damage currently comes from vehicle impacts, not enemies. Physics and targeting remain simplified game systems; the camera can pass through scenery. The character is procedural, not a photorealistic scanned/rigged asset. A production statewide game would require geographic data, world streaming, authored assets, audio, a larger gameplay system, optimization, and licensing review.
 
 ## Layout
 

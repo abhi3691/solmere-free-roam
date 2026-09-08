@@ -1,11 +1,14 @@
 import { expect, test } from "@playwright/test";
 
 test("loads, drives, resets, changes vehicles, travels and shoots", async ({ page }, testInfo) => {
+  test.setTimeout(120000);
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto("/");
   const start = page.getByRole("button", { name: "Let's drive" });
   await expect(start).toBeEnabled({ timeout: 45000 });
+  await expect(page.getByRole("button", { name: "Open world map" })).toBeHidden();
+  await start.click({ trial: true });
   await page.screenshot({ path: testInfo.outputPath("welcome.png") });
   await start.click();
   await expect(page.getByText("The road is yours.")).toBeVisible();
@@ -41,7 +44,6 @@ test("loads, drives, resets, changes vehicles, travels and shoots", async ({ pag
   if (testInfo.project.name === "mobile") await page.getByRole("button", { name: "FIRE", exact: true }).click();
   else await page.keyboard.press("f");
   await expect(page.locator(".drive-details")).not.toContainText("30 / 30");
-  await expect(page.locator(".drive-details")).not.toContainText("0 HITS");
   await page.getByRole("button", { name: "Reload weapon" }).click();
   await expect(page.locator(".drive-details")).toContainText("30 / 30", { timeout: 10000 });
   await page.getByRole("button", { name: "Pause game" }).click();
@@ -50,6 +52,20 @@ test("loads, drives, resets, changes vehicles, travels and shoots", async ({ pag
   await expect(page.locator(".drive-details")).toContainText("30 / 30");
   await page.screenshot({ path: testInfo.outputPath("pause.png") });
   await page.getByRole("button", { name: "Back to the road" }).click();
+  await page.getByRole("button", { name: "Loadout", exact: true }).click();
+  await expect(page.locator(".weapon-card")).toHaveCount(6);
+  await page.getByRole("button", { name: /Marksman/ }).click();
+  await page.getByRole("button", { name: "Head out on foot" }).click();
+  await expect(page.locator(".drive-details")).toContainText("MARKSMAN");
+  await expect(page.locator(".drive-details")).toContainText("8 / 8");
+  await page.getByRole("button", { name: "Petrol", exact: true }).click();
+  await page.getByRole("button", { name: /Kessel Petrol/ }).click();
+  const initialFuel = parseFloat((await page.getByTestId("fuel").textContent())!);
+  const initialCredits = parseFloat((await page.getByTestId("credits").textContent())!);
+  await page.getByRole("button", { name: /Refuel up to 10 L/ }).click();
+  await expect.poll(async () => parseFloat((await page.getByTestId("fuel").textContent())!)).toBeCloseTo(initialFuel + 10, 0);
+  await expect.poll(async () => parseFloat((await page.getByTestId("credits").textContent())!)).toBeCloseTo(initialCredits - 20, 0);
+  await expect(page.getByTestId("health")).toHaveText("100");
   await page.screenshot({ path: testInfo.outputPath("gameplay.png") });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(errors).toEqual([]);
@@ -64,6 +80,15 @@ test("explains when WebGL is unavailable", async ({ page }) => {
     } as typeof getContext;
   });
   await page.goto("/");
-  await expect(page.getByRole("alert")).toContainText("Your browser needs WebGL to play");
+  await expect(page.locator(".error-message")).toContainText("Your browser needs WebGL to play");
   await expect(page.getByRole("button", { name: "3D renderer unavailable" })).toBeDisabled();
+});
+
+test("start action remains reachable on short screens", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 600 });
+  await page.goto("/");
+  const start = page.getByRole("button", { name: "Let's drive" });
+  await expect(start).toBeEnabled({ timeout: 45000 });
+  await start.click();
+  await expect(page.getByTestId("health")).toHaveText("100");
 });

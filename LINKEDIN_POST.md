@@ -1,18 +1,20 @@
-🌴 Built a free-roam 3D driving sandbox set in a fictional coastal state — right in the browser.
+I've been building an open-world browser-game prototype with Next.js, TypeScript, React, and Three.js.
 
-Solmere Free Roam is a playable, single-player exploration game built with Next.js, React, TypeScript, and Three.js. Everything — cars, coastline, backwaters, hills, buildings — is generated procedurally in code. No downloaded assets, no external map data.
+The original idea was a Kerala-inspired driving sandbox. The current project, Solmere Free Roam, explores a fictional coastal world with 14 destinations and five original vehicle designs.
 
-What's in it:
-🚗 5 original procedural vehicles across sport, sedan, off-road, luxury, and adventure classes
-🗺️ A compressed, wholly fictional coastal world connecting all 14 provinces, with fast travel via the map
-🚤 🚁 🛸 Multiple ways to explore — drive, walk, boat, fly a helicopter, or pilot a drone
-🌊 Animated ocean, palms, and backwater scenery
-🎯 Lightweight mission and target-practice systems, garage customization, and touch controls for mobile
+The latest work has focused on making interactions feel more believable:
 
-The entire thing was built with Claude Code, Anthropic's agentic coding CLI — from project scaffolding to the simulation engine, UI, and Playwright test coverage.
+- More detailed procedural cars and a character with articulated movement
+- Car collisions, proximity-based entry, and safe exits
+- Six selectable fictional weapons and non-graphic target practice
+- Health, vehicle fuel consumption, and petrol stations
+- Earnable in-game credits and paid refueling
+- Desktop and mobile controls
 
-It's a lightweight prototype set in a made-up world, not a simulation of any real place — but it's a fun demonstration of how far an AI coding agent can take a 3D web project.
+One useful engineering lesson: visual detail isn't enough. Small issues, such as walking through a parked car or a minimap covering the start button, can break the experience. I've been pairing gameplay improvements with browser and engine-level regression tests.
 
-Try it here: https://kerala-free-roam-git-main-abhi3691s-projects.vercel.app/
+This is still a prototype, not a photorealistic game or a recreation of the full Kerala map. Missions, enterable homes, and additional transport modes are areas for future work.
 
-#WebDev #ThreeJS #NextJS #ClaudeCode #AI #GameDev
+What would you prioritize next: exploration, driving feel, or missions?
+
+#GameDevelopment #ThreeJS #WebGL #NextJS #TypeScript #BuildInPublic

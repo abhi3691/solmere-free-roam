@@ -25,10 +25,18 @@ export const DISTRICTS = [
 ] as const;
 
 export const WEAPONS = [
-  { name: "Sidearm", capacity: 12, cooldown: 0.3 },
-  { name: "Carbine", capacity: 30, cooldown: 0.12 },
-  { name: "Scattergun", capacity: 6, cooldown: 0.7 },
+  { name: "Sidearm", capacity: 12, cooldown: 0.3, range: 105, spread: 0.008, pellets: 1, reload: 1.1, automatic: false, description: "Balanced semi-automatic sidearm" },
+  { name: "Carbine", capacity: 30, cooldown: 0.12, range: 150, spread: 0.015, pellets: 1, reload: 1.7, automatic: true, description: "Automatic rifle with moderate recoil" },
+  { name: "Scattergun", capacity: 6, cooldown: 0.7, range: 62, spread: 0.085, pellets: 7, reload: 2.3, automatic: false, description: "Seven-pellet close-range spread" },
+  { name: "Compact SMG", capacity: 32, cooldown: 0.075, range: 85, spread: 0.025, pellets: 1, reload: 1.5, automatic: true, description: "Fast fire with a wider spread" },
+  { name: "Marksman", capacity: 8, cooldown: 0.85, range: 250, spread: 0.003, pellets: 1, reload: 2, automatic: false, description: "Precise long-range single shots" },
+  { name: "Revolver", capacity: 6, cooldown: 0.48, range: 115, spread: 0.007, pellets: 1, reload: 2.1, automatic: false, description: "Deliberate shots and stronger recoil" },
 ] as const;
+
+export const FUEL_PRICE = 2;
+export const FUEL_STATIONS = DISTRICTS.map((district, index) => ({
+  name: `${district.name} Petrol`, district: index, x: 17, z: district.z + 65,
+}));
 
 export type TransportMode = "car" | "foot" | "boat" | "helicopter" | "drone";
 export const TRANSPORTS = [
@@ -68,8 +76,15 @@ export type GameStats = {
   missionProgress: number;
   missionDistance: number;
   credits: number;
+  health: number;
+  fuel: number;
+  nearbyStation: number | null;
+  canEnterCar: boolean;
+  weaponIndex: number;
+  reloading: boolean;
+  message: string;
 };
-export const INITIAL_STATS: GameStats = { speed: 0, district: 7, driving: true, ammo: 12, hits: 0, x: 0, z: 0, mode: "car", altitude: 0, nearbyHome: null, insideHome: null, missionIndex: -1, missionsCompleted: 0, missionProgress: 0, missionDistance: 0, credits: 0 };
+export const INITIAL_STATS: GameStats = { speed: 0, district: 7, driving: true, ammo: 12, hits: 0, x: 0, z: 0, mode: "car", altitude: 0, nearbyHome: null, insideHome: null, missionIndex: -1, missionsCompleted: 0, missionProgress: 0, missionDistance: 0, credits: 100, health: 100, fuel: 65, nearbyStation: null, canEnterCar: false, weaponIndex: 0, reloading: false, message: "" };
 export type GameCommand =
   | { type: "vehicle"; index: number }
   | { type: "travel"; index: number }
@@ -79,6 +94,9 @@ export type GameCommand =
   | { type: "reload" }
   | { type: "fire" }
   | { type: "camera" }
+  | { type: "refuel" }
+  | { type: "station-travel"; index: number }
+  | { type: "respawn" }
   | { type: "transport"; mode: Exclude<TransportMode, "foot"> }
   | { type: "home-travel"; index: number }
   | { type: "interact" }
