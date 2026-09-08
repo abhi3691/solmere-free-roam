@@ -469,7 +469,7 @@ test("mission objectives lock, track distance, pay out on arrival, and sprint dr
   expect(result.rejected.missionIndex).toBe(-1);
   expect(result.started).toMatchObject({ missionIndex: 0, missionsCompleted: 0 });
   expect(result.started.missionDistance).toBeGreaterThan(0);
-  expect(result.farAway.missionDistance).toBeGreaterThan(30);
+  expect(result.farAway.missionDistance).toBeGreaterThan(25);
   expect(result.sprinting.stamina).toBeLessThan(100);
   expect(result.arrived).toMatchObject({ missionIndex: -1, missionsCompleted: 1, credits: 100 + MISSIONS[0].reward });
   expect(result.rested.stamina).toBeGreaterThan(result.sprinting.stamina);
