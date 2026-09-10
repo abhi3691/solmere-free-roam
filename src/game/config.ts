@@ -65,6 +65,7 @@ export const MISSIONS = [
 ] as const;
 
 export type GameStats = {
+  view: "first" | "third" | "overhead";
   heading: number;
   speed: number;
   district: number;
@@ -93,7 +94,7 @@ export type GameStats = {
   reloading: boolean;
   message: string;
 };
-export const INITIAL_STATS: GameStats = { heading: 0, speed: 0, district: 7, driving: true, ammo: 12, weaponAmmo: WEAPONS.map((weapon) => weapon.capacity), hits: 0, x: 0, z: 0, mode: "car", altitude: 0, nearbyHome: null, insideHome: null, missionIndex: -1, missionsCompleted: 0, missionProgress: 0, missionDistance: 0, credits: 100, health: 100, stamina: 100, fuel: 65, clock: "06:00", nearbyStation: null, canEnterCar: false, weaponIndex: 0, reloading: false, message: "" };
+export const INITIAL_STATS: GameStats = { view: "third", heading: 0, speed: 0, district: 7, driving: true, ammo: 12, weaponAmmo: WEAPONS.map((weapon) => weapon.capacity), hits: 0, x: 0, z: 0, mode: "car", altitude: 0, nearbyHome: null, insideHome: null, missionIndex: -1, missionsCompleted: 0, missionProgress: 0, missionDistance: 0, credits: 100, health: 100, stamina: 100, fuel: 65, clock: "06:00", nearbyStation: null, canEnterCar: false, weaponIndex: 0, reloading: false, message: "" };
 export type GameCommand =
   | { type: "room"; snapshot: RoomSnapshot | null }
   | { type: "vehicle"; index: number }
@@ -104,6 +105,7 @@ export type GameCommand =
   | { type: "reload" }
   | { type: "fire" }
   | { type: "camera" }
+  | { type: "view"; mode: "first" | "third" }
   | { type: "refuel" }
   | { type: "station-travel"; index: number }
   | { type: "respawn" }
@@ -115,4 +117,4 @@ export type GameCommand =
   | { type: "pause"; value: boolean }
   | { type: "mute"; value: boolean }
   | { type: "input"; key: string; pressed: boolean };
-export type GameController = { command: (command: GameCommand) => void; dispose: () => void; getVehiclePreview: (index: number) => string };
+export type GameController = { command: (command: GameCommand) => void; dispose: () => void; getVehiclePreview: (index: number) => string; getWeaponPreview: (index: number) => string };

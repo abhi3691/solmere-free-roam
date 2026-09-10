@@ -11,6 +11,8 @@ test("loads, drives, resets, changes vehicles, travels and shoots", async ({ pag
   await start.click({ trial: true });
   await page.screenshot({ path: testInfo.outputPath("welcome.png") });
   await start.click();
+  const portrait = page.getByRole("button", { name: "Continue in portrait" });
+  if (await portrait.isVisible()) await portrait.click();
   await expect(page.getByText("The road is yours.")).toBeVisible();
   if (testInfo.project.name === "mobile") {
     const pedal = page.getByRole("button", { name: "Accelerate or walk forward" });
@@ -30,10 +32,12 @@ test("loads, drives, resets, changes vehicles, travels and shoots", async ({ pag
   await page.getByRole("button", { name: "Garage", exact: true }).click();
   await page.getByRole("button", { name: /Highland 110/ }).click();
   await expect(page.locator(".vehicle-card.selected")).toContainText("Highland 110");
+  await expect(page.locator(".vehicle-render img")).toHaveCount(5);
+  await page.screenshot({ path: testInfo.outputPath("garage.png") });
   await page.getByRole("button", { name: "Take it for a drive" }).click();
   await expect(page.locator(".current-vehicle")).toContainText("Highland 110");
   await page.getByRole("button", { name: "Map", exact: true }).click();
-  await expect(page.locator(".district-list button")).toHaveCount(15);
+  await expect(page.locator(".district-list button")).toHaveCount(18);
   await page.getByRole("button", { name: /Mistvale Highland escape/ }).click();
   await expect(page.locator(".location-tag h2")).toHaveText("Mistvale");
   await page.getByRole("button", { name: "Loadout", exact: true }).click();
@@ -91,5 +95,29 @@ test("start action remains reachable on short screens", async ({ page }) => {
   const start = page.getByRole("button", { name: "Let's drive" });
   await expect(start).toBeEnabled({ timeout: 45000 });
   await start.click();
+  const portrait = page.getByRole("button", { name: "Continue in portrait" });
+  if (await portrait.isVisible()) await portrait.click();
   await expect(page.getByTestId("health")).toHaveText("100");
+});
+
+test("online lobby creates an invite and starts a match with a second client", async ({ page, request }) => {
+  test.setTimeout(90000);
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Let's drive" })).toBeEnabled({ timeout: 45000 });
+  await page.getByRole("button", { name: "Online", exact: true }).click();
+  await page.getByLabel("Player name").fill("Host Explorer");
+  await page.getByRole("button", { name: "Create room", exact: true }).click();
+  await expect(page.locator(".invite-code strong")).toHaveText(/^[A-F0-9]{8}$/);
+  const code = await page.locator(".invite-code strong").textContent();
+  const guest = await (await request.post("/api/rooms", { data: { action: "join", code, name: "Test Guest" } })).json();
+  await expect(page.getByText("Test Guest", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Start battle royale" }).click();
+  const portrait = page.getByRole("button", { name: "Continue in portrait" });
+  if (await portrait.isVisible()) await portrait.click();
+  await expect(page.locator(".battle-hud")).toContainText("2 alive");
+  await expect(page.locator(".battle-backpack")).toContainText("Medkits 1");
+  await page.getByRole("button", { name: "Online", exact: true }).click();
+  await page.getByRole("button", { name: "Leave room" }).click();
+  await expect(page.getByRole("button", { name: "Create room", exact: true })).toBeVisible();
+  await request.post("/api/rooms", { data: { action: "leave", code, token: guest.token } });
 });

@@ -41,19 +41,35 @@ def cube(name,g,m,p,s,bevel=.02):
     mod=o.modifiers.new('Soft manufactured edges','BEVEL'); mod.width=bevel; mod.segments=3
     bpy.context.view_layer.objects.active=o; bpy.ops.object.modifier_apply(modifier=mod.name)
     return finish(o,name,g,m)
+def loft(name,g,m,rings):
+    verts=[]; faces=[]; n=24
+    for y,w,d in rings:
+        for i in range(n):
+            a=i*math.tau/n; verts.append(pos((math.cos(a)*w,y,math.sin(a)*d)))
+    for j in range(len(rings)-1):
+        for i in range(n):
+            a=j*n+i; b=j*n+(i+1)%n; faces.append((a,b,b+n,a+n))
+    faces.extend([tuple(reversed(range(n))),tuple((len(rings)-1)*n+i for i in range(n))])
+    data=bpy.data.meshes.new(name); data.from_pydata(verts,[],faces); data.update()
+    o=bpy.data.objects.new(name,data); bpy.context.collection.objects.link(o); finish(o,name,g,m)
+    bpy.ops.object.select_all(action='DESELECT'); o.select_set(True); bpy.context.view_layer.objects.active=o
+    mod=o.modifiers.new('Tailored surface','SUBSURF'); mod.levels=2; bpy.ops.object.modifier_apply(modifier=mod.name)
+    bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT'); bpy.ops.uv.smart_project(); bpy.ops.object.mode_set(mode='OBJECT')
+    return o
+
 # Tailored shirt silhouette with overlapping soft folds, collar, seams and buttons.
 g=group('TailoredTorso')
-ell('Chest',g,fabric,(0,.11,0),(.232,.265,.143))
-ell('Waist',g,fabric,(0,-.045,0),(.19,.14,.13))
+loft('Fitted shirt',g,fabric,[(-.10,.177,.123),(-.07,.182,.13),(.04,.20,.14),(.18,.226,.139),(.27,.24,.117),(.31,.18,.09),(.34,.083,.071)])
+loft('Trouser hips',g,denim,[(-.27,.167,.115),(-.23,.187,.133),(-.11,.181,.13),(-.08,.17,.12)])
 for side in [-1,1]:
     c=cube('Collar',g,fabric,(side*.067,.325,-.074),(.105,.045,.115),.012); c.rotation_euler[1]=side*.32
     cube('Pocket',g,fabric,(side*.115,.18,-.126),(.09,.10,.023),.01)
     for i in range(5):
         e=ell('Cloth fold',g,fabric,(side*.15,-.02+i*.048,-.104),(.065,.008,.025)); e.rotation_euler[1]=side*.22
 for i in range(5): ell('Button',g,alloy,(0,-.045+i*.069,-.144),(.006,.006,.004))
-g=group('CanvasThigh'); ell('Thigh',g,denim,(0,-.19,0),(.087,.225,.09))
+g=group('CanvasThigh'); loft('Thigh',g,denim,[(.025,.094,.095),(-.04,.094,.098),(-.16,.085,.091),(-.29,.073,.08),(-.40,.072,.077)])
 for i in range(4): ell('Knee crease',g,denim,(0,-.33+i*.015,-.062),(.075,.007,.02))
-g=group('CanvasShin'); ell('Calf',g,denim,(0,-.17,.012),(.067,.205,.072))
+g=group('CanvasShin'); loft('Calf',g,denim,[(.012,.073,.078),(-.06,.078,.082),(-.14,.072,.086),(-.26,.058,.066),(-.38,.055,.061)])
 # Complete rolling wheel on the local X axle. Original game steering pivots remain functional.
 g=group('TouringWheel')
 bpy.ops.mesh.primitive_torus_add(major_radius=.325,minor_radius=.105,major_segments=64,minor_segments=16,rotation=(0,math.pi/2,0)); finish(bpy.context.object,'Rounded tire carcass',g,rubber)
@@ -90,6 +106,9 @@ lips=mat('Natural lip tone',(.32,.13,.095),.68)
 eye=mat('Eye whites',(.66,.64,.57),.2)
 iris=mat('Brown iris',(.07,.038,.017),.24)
 pupil=mat('Pupil',(.006,.005,.004),.13)
+g=group('TailoredUpperArm'); loft('Sleeve',g,fabric,[(.045,.087,.089),(-.015,.091,.094),(-.09,.083,.085),(-.155,.073,.075)])
+loft('Upper arm',g,skin,[(-.14,.057,.059),(-.20,.056,.058),(-.285,.048,.05)])
+g=group('NaturalForearm'); loft('Forearm',g,skin,[(.012,.05,.052),(-.065,.054,.055),(-.14,.046,.049),(-.26,.035,.038)])
 g=group('SculptedHead')
 ell('Cranium',g,skin,(0,.018,.014),(.122,.157,.111))
 ell('Jaw',g,skin,(0,-.072,-.024),(.089,.078,.09))
@@ -116,6 +135,18 @@ ell('Back hair',g,hair,(0,.022,.093),(.104,.112,.028))
 for i in range(32):
     x=-.105+i*.0067
     ell('Combed strand',g,hair,(x,.153-abs(x)*.18,.006),(.004,.019,.076))
+# Weld the facial volumes into a continuous surface instead of visible primitive joints.
+face_parts=[o for o in g.children if o.type == 'MESH' and o.data.materials[0] == skin]
+bpy.ops.object.select_all(action='DESELECT')
+for o in face_parts: o.select_set(True)
+bpy.context.view_layer.objects.active=face_parts[0]; bpy.ops.object.join()
+face=bpy.context.object; bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+mod=face.modifiers.new('Sculpted facial surface','REMESH'); mod.mode='VOXEL'; mod.voxel_size=.0035
+bpy.ops.object.modifier_apply(modifier=mod.name)
+mod=face.modifiers.new('Skin smoothing','SMOOTH'); mod.factor=.7; mod.iterations=5
+bpy.ops.object.modifier_apply(modifier=mod.name)
+for polygon in face.data.polygons: polygon.use_smooth=True
+bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT'); bpy.ops.uv.smart_project(); bpy.ops.object.mode_set(mode='OBJECT')
 # Baked skin pigment and fine pores survive glTF export.
 image=bpy.data.images.new('Skin pores',width=256,height=256); pixels=[]
 for i in range(256*256):

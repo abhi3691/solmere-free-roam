@@ -515,12 +515,23 @@ export function createGame(
     coconuts.push(matrix(topX, height - 0.3, z, 0.55, 0.4, 0.55));
     shadows.push(matrix(x + 1, 0.016, z + 1, 3.5, 2.4, 1, -Math.PI / 2));
   }
+  for (let i = 0; i < 180; i++) {
+    const x = -115 + (i * 73.13) % 455, z = 1020 + (i * 37.7) % 520;
+    if (nearRoad(x, z, 4) || nearHome(x, z, 6) || nearStation(x, z, 6) || colliders.some(c => x > c.minX - 4 && x < c.maxX + 4 && z > c.minZ - 4 && z < c.maxZ + 4)) continue;
+    const height = 8 + i % 4;
+    trunks.push(matrix(x, height / 2, z, 1, height, 1));
+    for (let j = 0; j < 7; j++) fronds.push(matrix(x, height, z, .9, .9, .9, 0, j * Math.PI * 2 / 7));
+  }
   batch(palmTrunk, wood, trunks).castShadow = true;
   const palmLeaves = batch(leafGeometry, leaves, fronds);
   palmLeaves.castShadow = true;
   batch(sphere, green, coconuts);
   batch(circle, shadowMat, shadows);
 
+  for (const transform of trunks) {
+    const trunk = new THREE.Vector3().setFromMatrixPosition(transform);
+    colliders.push({ minX: trunk.x - .23, maxX: trunk.x + .23, minZ: trunk.z - .23, maxZ: trunk.z + .23, height: trunk.y * 2 });
+  }
   const mountains: THREE.Matrix4[][] = [[], [], []];
   for (let i = 0; i < 85; i++) {
     const layer = i % 3;
@@ -1028,7 +1039,7 @@ export function createGame(
   const avatar = new THREE.Group();
   avatar.name = "PlayerAvatar";
   scene.add(avatar);
-  const skin = paint("#b8805c");
+  const skin = paint("#80502f", 0.65);
   const shirt = paint("#c6baa0");
   const trousers = paint("#284b55");
   const hair = paint("#25201c");
@@ -1148,14 +1159,18 @@ export function createGame(
   mesh(roundedBox, wood, 0, 0.06, -0.28, 0.105, 0.09, 0.22, longWeapon);
   mesh(roundedBox, dark, 0, 0.048, 0.18, 0.09, 0.135, 0.21, longWeapon);
   mesh(roundedBox, dark, 0, -0.075, -0.13, 0.065, 0.19, 0.1, longWeapon).rotation.x = -0.15;
+  longWeapon.name = "long";
+  barrel.name = "barrel";
   longWeapon.visible = false;
   const scope = new THREE.Group();
   weapon.add(scope);
   mesh(cylinder, dark, 0, 0.2, -0.12, 0.043, 0.26, 0.043, scope).rotation.x = Math.PI / 2;
   mesh(circle, glass, 0, 0.2, -0.255, 0.036, 0.036, 1, scope).rotation.y = Math.PI;
+  scope.name = "scope";
   scope.visible = false;
   const revolverCylinder = mesh(cylinder, brake, 0, 0.055, -0.06, 0.066, 0.11, 0.066, weapon);
   revolverCylinder.rotation.x = Math.PI / 2;
+  revolverCylinder.name = "revolver";
   revolverCylinder.visible = false;
   const armDown = new THREE.Vector3(0, -1, 0);
   const armTarget = new THREE.Vector3();
@@ -1290,7 +1305,11 @@ export function createGame(
     };
     // Preserve the weapon, head, pelvis and all animated joints.
     dress("SculptedHead", head, child => child instanceof THREE.Mesh);
-    dress("TailoredTorso", body, child => child instanceof THREE.Mesh && child.position.y > -0.08 && child.position.y < 0.36);
+    dress("TailoredTorso", body, child => child instanceof THREE.Mesh && child.position.y > -0.3 && child.position.y < 0.36);
+    for (const { shoulder, elbow } of arms) {
+      dress("TailoredUpperArm", shoulder, child => child instanceof THREE.Mesh);
+      dress("NaturalForearm", elbow, child => child instanceof THREE.Mesh);
+    }
     for (const { hip, knee } of legs) {
       dress("CanvasThigh", hip, child => child instanceof THREE.Mesh);
       dress("CanvasShin", knee, child => child instanceof THREE.Mesh);
@@ -1301,7 +1320,20 @@ export function createGame(
       if (!(child instanceof THREE.Mesh)) return;
       palmLeaves.geometry = geometry(child.geometry.clone().applyMatrix4(child.matrixWorld));
       palmLeaves.material = child.material;
-      for (const mat of Array.isArray(child.material) ? child.material : [child.material]) mat.side = THREE.DoubleSide;
+      for (const mat of Array.isArray(child.material) ? child.material : [child.material]) {
+        mat.side = THREE.DoubleSide;
+        mat.onBeforeCompile = (shader: Parameters<THREE.Material["onBeforeCompile"]>[0]) => {
+          shader.uniforms.uWindTime = oceanTime;
+          shader.vertexShader = "uniform float uWindTime;\n" + shader.vertexShader;
+          shader.vertexShader = shader.vertexShader.replace("#include <begin_vertex>", `
+            #include <begin_vertex>
+            float bend = clamp(-position.z / 6.0, 0.0, 1.0);
+            transformed.x += sin(uWindTime * 1.25 + position.z * 0.7) * 0.13 * bend;
+            transformed.y += cos(uWindTime * 0.9 + position.x) * 0.06 * bend;
+          `);
+        };
+        mat.customProgramCacheKey = () => "coastal-wind";
+      }
       palmLeaves.computeBoundingSphere();
     });
     const shutters = library.getObjectByName("WindowShutters");
@@ -1354,11 +1386,12 @@ export function createGame(
   function emitStats() {
     const position = player();
     const district = nearestDistrict();
-    audio.setAmbient(district === DISTRICTS.length - 1);
+    audio.setAmbient(district === 14);
     const missionTarget = missionIndex !== -1 ? MISSIONS[missionIndex] : null;
     const missionDistance = missionTarget ? Math.hypot(position.x - missionTarget.x, position.z - missionTarget.z) : 0;
     const missionProgress = missionTarget ? THREE.MathUtils.clamp(1 - missionDistance / missionStartDistance, 0, 1) : 0;
     onStats({
+      view: cameraMode === 3 ? "first" : cameraMode === 2 ? "overhead" : "third",
       heading,
       speed: Math.round(Math.abs(driving ? speed : footSpeed) * 3.6),
       district,
@@ -1495,7 +1528,13 @@ export function createGame(
     const position = player();
     const forwardX = -Math.sin(heading);
     const forwardZ = -Math.cos(heading);
-    if (cameraMode === 2) {
+    head.visible = cameraMode !== 3;
+    car.visible = !online && !(driving && cameraMode === 3);
+    weapon.position.y = cameraMode === 3 ? .29 : .055;
+    if (cameraMode === 3) {
+      desiredCamera.set(position.x + forwardX * .04, driving ? 1.5 : 1.65, position.z + forwardZ * .04);
+      lookAt.set(position.x + forwardX * 10, (driving ? 1.5 : 1.65) + Math.tan(aimPitch + recoil) * 10, position.z + forwardZ * 10);
+    } else if (cameraMode === 2) {
       desiredCamera.set(position.x - forwardX * 5, 49, position.z - forwardZ * 12);
       lookAt.set(position.x + forwardX * 7, 0, position.z + forwardZ * 7);
     } else {
@@ -1506,7 +1545,7 @@ export function createGame(
     }
     desiredCamera.y += position.y;
     lookAt.y += position.y;
-    const factor = snap ? 1 : 1 - Math.exp(-dt * 6);
+    const factor = snap || cameraMode === 3 ? 1 : 1 - Math.exp(-dt * 6);
     camera.position.lerp(desiredCamera, factor);
     smoothedLookAt.lerp(lookAt, factor);
     camera.lookAt(smoothedLookAt);
@@ -1725,7 +1764,7 @@ export function createGame(
       }
       for (const item of online.loot) {
         let actor = supplyActors.get(item.id);
-        if (!actor) { actor = mesh(roundedBox, item.kind === "medkit" ? red : gold, item.x, .35, item.z, .65, .55, .65); supplyActors.set(item.id, actor); }
+        if (!actor) { actor = mesh(roundedBox, item.kind === "medkit" ? red : item.kind === "armor" ? chrome : item.kind === "weapon" ? gold : green, item.x, .35, item.z, .65, .55, .65); supplyActors.set(item.id, actor); }
         actor.visible = !item.taken && online.phase === "active";
       }
       emitStats(); return;
@@ -1823,7 +1862,7 @@ export function createGame(
       }
       case "toggle-drive": toggleDrive(); break;
       case "reload":
-        if (!paused && !driving && reloadRemaining <= 0 && ammo[weaponIndex] < WEAPONS[weaponIndex].capacity) {
+        if (!paused && !driving && reloadRemaining <= 0 && ammo[weaponIndex] < WEAPONS[weaponIndex].capacity && (!online || (online.players.find(p => p.id === online!.selfId)?.weapons[weaponIndex] && (online.players.find(p => p.id === online!.selfId)?.reserve[weaponIndex] ?? 0) > 0))) {
           onCombat?.({ type: "reload", weapon: weaponIndex, heading, pitch: aimPitch });
           reloadRemaining = WEAPONS[weaponIndex].reload;
           notify(`Reloading ${WEAPONS[weaponIndex].name}...`);
@@ -1831,7 +1870,8 @@ export function createGame(
         }
         break;
       case "fire": fire(); break;
-      case "camera": cameraMode = (cameraMode + 1) % 3; updateCamera(0, true); break;
+      case "view": cameraMode = action.mode === "first" ? 3 : 0; updateCamera(0, true); break;
+      case "camera": cameraMode = driving ? (cameraMode + 1) % 3 : cameraMode === 3 ? 0 : 3; updateCamera(0, true); break;
       case "mission-start":
         if (validIndex(action.index, MISSIONS.length) && missionIndex !== action.index) {
           const target = MISSIONS[action.index];
@@ -2177,18 +2217,15 @@ export function createGame(
   }
   frameId = requestAnimationFrame(frame);
 
-  return {
-    command,
-    getVehiclePreview(index: number) {
-      if (!validIndex(index, VEHICLES.length) || disposed) return "";
-      if (!carModels.has(index)) { buildCar(index); buildCar(vehicleIndex); }
+  function renderPreview(model: THREE.Object3D, eye: [number, number, number], center: [number, number, number]) {
       const preview = new THREE.Scene(); preview.background = new THREE.Color("#142b2c"); preview.environment = scene.environment;
-      const model = carModels.get(index)!.model.clone(true); model.position.set(0, 0, 0); model.rotation.set(0, 0, 0); preview.add(model);
+      model.position.set(0, 0, 0); model.rotation.set(0, 0, 0); model.visible = true; preview.add(model);
       preview.add(new THREE.HemisphereLight("#ecf4ff", "#545040", 2.2));
       const light = new THREE.DirectionalLight("#fff2dc", 4); light.position.set(4, 6, 3); preview.add(light);
       const rim = new THREE.DirectionalLight("#b0d8ff", 3); rim.position.set(-4, 3, -3); preview.add(rim);
-      const lens = new THREE.PerspectiveCamera(36, 16 / 9, .1, 40); lens.position.set(6.4, 3.1, -7.6); lens.lookAt(0, .8, 0);
+      const lens = new THREE.PerspectiveCamera(36, 16 / 9, .1, 40); lens.position.set(...eye); lens.lookAt(...center);
       const target = new THREE.WebGLRenderTarget(640, 360);
+      target.texture.colorSpace = THREE.SRGBColorSpace;
       const previous = renderer.getRenderTarget();
       try {
         renderer.setRenderTarget(target); renderer.render(preview, lens);
@@ -2198,6 +2235,27 @@ export function createGame(
         for (let y = 0; y < 360; y++) data.data.set(pixels.subarray((359-y)*640*4,(360-y)*640*4),y*640*4);
         context.putImageData(data,0,0); return output.toDataURL("image/png");
       } finally { renderer.setRenderTarget(previous); target.dispose(); model.traverse(o => { if (o instanceof THREE.InstancedMesh) o.dispose(); }); preview.clear(); }
+  }
+
+  return {
+    command,
+    getVehiclePreview(index: number) {
+      if (!validIndex(index, VEHICLES.length) || disposed) return "";
+      if (!carModels.has(index)) { buildCar(index); buildCar(vehicleIndex); }
+      return renderPreview(carModels.get(index)!.model.clone(true), [6.4, 3.1, -7.6], [0, .8, 0]);
+    },
+    getWeaponPreview(index: number) {
+      if (!validIndex(index, WEAPONS.length) || disposed) return "";
+      const model = weapon.clone(true);
+      model.getObjectByName("long")!.visible = index > 0 && index < 5;
+      model.getObjectByName("scope")!.visible = index === 4;
+      model.getObjectByName("revolver")!.visible = index === 5;
+      const tube = model.getObjectByName("barrel")!;
+      tube.scale.y = [.16,.4,.34,.23,.6,.24][index];
+      tube.scale.x = tube.scale.z = index === 2 ? .045 : .032;
+      tube.position.z = -.22 - tube.scale.y / 2;
+      return renderPreview(model, [1.25, .55, .7], [0, .03, -.2]);
+
     },
     dispose() {
       if (disposed) return;

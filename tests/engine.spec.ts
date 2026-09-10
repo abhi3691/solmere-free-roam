@@ -531,3 +531,18 @@ test("reverse input brakes before reversing and grip limits high-speed turns", a
   expect(result.yaw).toBeGreaterThan(0);
   expect(result.yaw).toBeLessThan(.15);
 });
+
+test("jump follows gravity and lands back on the ground", async ({ page }) => {
+  const result = await page.evaluate(() => {
+    const e = window.engine;
+    e.controller.command({ type: "toggle-drive" });
+    e.controller.command({ type: "input", key: "space", pressed: true });
+    e.advance(.35);
+    const raised = e.avatar.position.y;
+    e.controller.command({ type: "input", key: "space", pressed: false });
+    e.advance(1.2);
+    return { raised, landed: e.avatar.position.y };
+  });
+  expect(result.raised).toBeGreaterThan(.8);
+  expect(result.landed).toBe(0);
+});
