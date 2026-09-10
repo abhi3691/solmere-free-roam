@@ -24,7 +24,8 @@ const fixturePage = `<!doctype html><html><head>
   <script type="importmap">{"imports":{
     "three":"/three-fixture.js",
     "three/addons/geometries/RoundedBoxGeometry.js":"/RoundedBoxGeometry.js",
-    "three/addons/environments/RoomEnvironment.js":"/RoomEnvironment.js"
+    "three/addons/environments/RoomEnvironment.js":"/RoomEnvironment.js",
+    "three/addons/loaders/GLTFLoader.js":"/loaders/GLTFLoader.js"
   }}</script></head><body>
   <div id="game" style="position:relative;width:320px;height:200px"></div>
   <script type="module" src="/fixture.js"></script>
@@ -78,8 +79,8 @@ const browserFixture = `
   // WebGLRenderer defines render on the instance, not its prototype. Keep real
   // initialization/first render, then omit GPU draws during deterministic ticks.
   renderer.render = () => {};
-  const car = scene.children.find(o => o.type === 'Group' && o.children.some(c => c.type === 'Group' && c.children.length > 50));
-  const avatar = scene.children.find(o => o.type === 'Group' && o.children.length === 3);
+  const car = scene.getObjectByName('PlayerCar');
+  const avatar = scene.getObjectByName('PlayerAvatar');
   if (!car || !avatar) throw new Error('Could not identify engine actors for scenario placement');
   window.engine = { controller, get stats() { return stats; }, advance, car, avatar };
 `;
@@ -90,6 +91,10 @@ const test = base.extend<{ enginePage: void }>({
     const files = new Map([
       ["/engine", "src/game/engine.ts"],
       ["/config", "src/game/config.ts"],
+      ["/audio", "src/game/audio.ts"],
+      ["/loaders/GLTFLoader.js", "node_modules/three/examples/jsm/loaders/GLTFLoader.js"],
+      ["/utils/BufferGeometryUtils.js", "node_modules/three/examples/jsm/utils/BufferGeometryUtils.js"],
+      ["/utils/SkeletonUtils.js", "node_modules/three/examples/jsm/utils/SkeletonUtils.js"],
       ["/three.module.js", "node_modules/three/build/three.module.js"],
       ["/three.core.js", "node_modules/three/build/three.core.js"],
       ["/RoundedBoxGeometry.js", "node_modules/three/examples/jsm/geometries/RoundedBoxGeometry.js"],
@@ -102,6 +107,10 @@ const test = base.extend<{ enginePage: void }>({
       const pathname = new URL(route.request().url()).pathname;
       if (pathname === "/") {
         await route.fulfill({ contentType: "text/html", body: fixturePage });
+        return;
+      }
+      if (["/models/coastal-assets.glb", "/models/wastelands-edge.glb"].includes(pathname)) {
+        await route.fulfill({ contentType: "model/gltf-binary", body: await readFile(path.join(root, "public", pathname)) });
         return;
       }
       let body = scripts.get(pathname);
@@ -497,4 +506,28 @@ test("guesthouse entry via interact moves the avatar indoors and confines moveme
   // Walking "backward" from just inside the door pushes toward the far wall; the room wall must stop it.
   expect(result.pinned.z).toBeGreaterThan(HOMES[7].z - 7.9);
   expect(result.exited.insideHome).toBeNull();
+});
+
+test("reverse input brakes before reversing and grip limits high-speed turns", async ({ page }) => {
+  const result = await page.evaluate(() => {
+    const e = window.engine, command = e.controller.command;
+    command({ type: "input", key: "w", pressed: true }); e.advance(2);
+    command({ type: "input", key: "w", pressed: false });
+    const fast = { ...e.stats };
+    command({ type: "input", key: "s", pressed: true }); e.advance(.5);
+    const braking = { ...e.stats };
+    e.advance(2);
+    const reverse = { ...e.stats };
+    command({ type: "reset" });
+    command({ type: "input", key: "w", pressed: true }); e.advance(3);
+    command({ type: "input", key: "w", pressed: false });
+    const heading = e.car.rotation.y;
+    command({ type: "input", key: "a", pressed: true }); e.advance(.25);
+    return { fast, braking, reverse, yaw: Math.abs(e.car.rotation.y - heading) };
+  });
+  expect(result.braking.speed).toBeLessThan(result.fast.speed);
+  expect(result.braking.z).toBeLessThan(result.fast.z);
+  expect(result.reverse.z).toBeGreaterThan(result.braking.z - 10);
+  expect(result.yaw).toBeGreaterThan(0);
+  expect(result.yaw).toBeLessThan(.15);
 });

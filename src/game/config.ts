@@ -1,3 +1,4 @@
+import type { RoomSnapshot } from "./multiplayer-types";
 export const VEHICLES = [
   { id: "sport", name: "Bavarian GT", inspiration: "BMW-inspired sports coupe", type: "SPORT COUPE", color: "#ef783f", speed: 210, handling: 88, shape: "sport" },
   { id: "sedan", name: "Autobahn RS", inspiration: "Audi-inspired performance sedan", type: "SPORT SEDAN", color: "#cbd8de", speed: 230, handling: 84, shape: "sedan" },
@@ -23,6 +24,9 @@ export const DISTRICTS = [
   { name: "Saltmere", x: 50, z: 590, label: "Southern backwaters", hq: "Saltmere", area: 2470, about: "Cashew traders and the wide Tidewater Lake" },
   { name: "Sunhaven", x: 95, z: 780, label: "The southern capital", hq: "Sunhaven", area: 2180, about: "Capital province, home to the Sunken Court shrine" },
   { name: "Wastelands Edge", x: 230, z: 940, label: "The scorched frontier", hq: "Outlander Camp", area: 860, about: "Where the coast road cracks into dry earth, rusted rigs, and a wind-scoured ruin" },
+  { name: "Copper Bay", x: 40, z: 1100, label: "Trading port", hq: "Copper Quay", area: 970, about: "Warehouses and sheltered roads along the southern trading coast" },
+  { name: "Cedar Reach", x: 180, z: 1290, label: "Forest foothills", hq: "Cedar Junction", area: 1230, about: "Quiet guesthouses and long drives beneath the highland ridges" },
+  { name: "Lastlight", x: 30, z: 1460, label: "Southern frontier", hq: "Lastlight Point", area: 890, about: "The final stretch of coastal highway, beyond the old frontier" },
 ] as const;
 
 export const WEAPONS = [
@@ -61,6 +65,7 @@ export const MISSIONS = [
 ] as const;
 
 export type GameStats = {
+  heading: number;
   speed: number;
   district: number;
   driving: boolean;
@@ -88,8 +93,9 @@ export type GameStats = {
   reloading: boolean;
   message: string;
 };
-export const INITIAL_STATS: GameStats = { speed: 0, district: 7, driving: true, ammo: 12, weaponAmmo: WEAPONS.map((weapon) => weapon.capacity), hits: 0, x: 0, z: 0, mode: "car", altitude: 0, nearbyHome: null, insideHome: null, missionIndex: -1, missionsCompleted: 0, missionProgress: 0, missionDistance: 0, credits: 100, health: 100, stamina: 100, fuel: 65, clock: "06:00", nearbyStation: null, canEnterCar: false, weaponIndex: 0, reloading: false, message: "" };
+export const INITIAL_STATS: GameStats = { heading: 0, speed: 0, district: 7, driving: true, ammo: 12, weaponAmmo: WEAPONS.map((weapon) => weapon.capacity), hits: 0, x: 0, z: 0, mode: "car", altitude: 0, nearbyHome: null, insideHome: null, missionIndex: -1, missionsCompleted: 0, missionProgress: 0, missionDistance: 0, credits: 100, health: 100, stamina: 100, fuel: 65, clock: "06:00", nearbyStation: null, canEnterCar: false, weaponIndex: 0, reloading: false, message: "" };
 export type GameCommand =
+  | { type: "room"; snapshot: RoomSnapshot | null }
   | { type: "vehicle"; index: number }
   | { type: "travel"; index: number }
   | { type: "weapon"; index: number }
@@ -109,4 +115,4 @@ export type GameCommand =
   | { type: "pause"; value: boolean }
   | { type: "mute"; value: boolean }
   | { type: "input"; key: string; pressed: boolean };
-export type GameController = { command: (command: GameCommand) => void; dispose: () => void };
+export type GameController = { command: (command: GameCommand) => void; dispose: () => void; getVehiclePreview: (index: number) => string };

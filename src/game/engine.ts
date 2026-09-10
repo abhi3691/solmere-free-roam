@@ -1,3 +1,4 @@
+import type { CombatEvent, RoomSnapshot } from "./multiplayer-types";
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
@@ -13,6 +14,7 @@ export function createGame(
   container: HTMLElement,
   onStats: (stats: GameStats) => void,
   onReady: () => void,
+  onCombat?: (event: CombatEvent) => void,
 ): GameController {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color("#c6e0e6");
@@ -62,7 +64,10 @@ export function createGame(
       for (let i = 0; i < pixels.data.length; i += 4) {
         textureSeed = (Math.imul(textureSeed, 1664525) + 1013904223) >>> 0;
         const noise = textureSeed / 4294967296;
-        const shade = (kind === "road" ? 165 : 205) + noise * (kind === "plaster" ? 30 : 48);
+        const x = (i / 4) % 256, y = Math.floor(i / 1024);
+        const mottling = Math.sin(x * 0.049 + Math.sin(y * 0.031) * 2) * Math.cos(y * 0.073);
+        const grain = kind === "road" ? (noise > 0.94 ? 65 : noise * 36) : noise * 38;
+        const shade = (kind === "road" ? 142 : 184) + grain + mottling * (kind === "earth" ? 4 : 6);
         pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = shade;
         pixels.data[i + 3] = 255;
       }
@@ -186,13 +191,13 @@ export function createGame(
   scene.add(sun, sun.target);
   mesh(sphere, material(new THREE.MeshBasicMaterial({ color: "#fff2cc", fog: false })), -540, 420, -700, 30, 30, 30);
 
-  const ground = mesh(plane, grass, 130, 0, -25, 540, 2200);
+  const ground = mesh(plane, grass, 130, 0, 280, 540, 2800);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
-  const beach = mesh(plane, sand, -129, 0.012, -25, 22, 2200);
+  const beach = mesh(plane, sand, -129, 0.012, 280, 22, 2800);
   beach.rotation.x = -Math.PI / 2;
   const oceanTime = { value: 0 };
-  const oceanMat = paint("#3caeb1", 0.28, 0.18);
+  const oceanMat = paint("#267b83", 0.22, 0.22);
   oceanMat.onBeforeCompile = (shader) => {
     shader.uniforms.uOceanTime = oceanTime;
     shader.vertexShader = "uniform float uOceanTime; varying vec3 vWaterPosition;\n" + shader.vertexShader;
@@ -203,6 +208,13 @@ export function createGame(
       vWaterPosition = transformed;
     `);
     shader.fragmentShader = "uniform float uOceanTime; varying vec3 vWaterPosition;\n" + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace("#include <normal_fragment_maps>", `
+      #include <normal_fragment_maps>
+      vec3 waterNormal = normalize(vec3(
+        -cos(vWaterPosition.x * 0.045 + uOceanTime * 0.65) * 0.08,
+        1.0, -cos(vWaterPosition.z * 0.09 + uOceanTime * 0.8) * 0.12));
+      normal = normalize(mat3(viewMatrix) * waterNormal);
+    `);
     shader.fragmentShader = shader.fragmentShader.replace("#include <color_fragment>", `
       #include <color_fragment>
       float wave = sin(vWaterPosition.z * 0.34 + sin(vWaterPosition.x * 0.07) * 2.0 + uOceanTime);
@@ -214,7 +226,7 @@ export function createGame(
   oceanGeometry.rotateX(-Math.PI / 2);
   mesh(oceanGeometry, oceanMat, -1140, -0.48, -25);
   const foamMatrices: THREE.Matrix4[] = [];
-  for (let z = -980; z < 940; z += 17) {
+  for (let z = -980; z < 1560; z += 17) {
     foamMatrices.push(matrix(-141.5 - random() * 2, -0.08, z, 0.65, 1, 9 + random() * 6));
   }
   const foam = batch(box, material(new THREE.MeshBasicMaterial({ color: "#d2f2df", transparent: true, opacity: 0.48 })), foamMatrices);
@@ -230,15 +242,15 @@ export function createGame(
     surface.rotation.set(-Math.PI / 2, 0, -angle);
     surface.receiveShadow = true;
   }
-  road(0, -960, 0, 1030, 15);
-  road(-101, -920, -101, 1030, 11);
-  road(246, -890, 246, 1030, 12);
+  road(0, -960, 0, 1570, 15);
+  road(-101, -920, -101, 1570, 11);
+  road(246, -890, 246, 1570, 12);
   for (const district of DISTRICTS) {
     road(-101, district.z, 246, district.z, 12);
     if (district.x !== 0) road(district.x, district.z - 54, district.x, district.z + 54, 14);
   }
   road(-101, -920, 246, -920, 12);
-  road(-101, 1030, 246, 1030, 12);
+  road(-101, 1030, 246, 1570, 12);
 
   function roadDistance(x: number, z: number, r: Road) {
     const dx = r.bx - r.ax;
@@ -272,7 +284,7 @@ export function createGame(
   const nearHome = (x: number, z: number, margin = 0) => HOMES.some((home) => Math.abs(x - home.x) < 9 + margin && Math.abs(z - home.z) < 12 + margin);
   const nearStation = (x: number, z: number, margin = 0) => FUEL_STATIONS.some((station) => Math.abs(x - station.x) < 12 + margin && Math.abs(z - station.z) < 13 + margin);
   // The imported Wastelands Edge diorama brings its own ruins and scatter; keep procedural scenery out of its footprint.
-  const WASTELANDS = DISTRICTS[DISTRICTS.length - 1];
+  const WASTELANDS = DISTRICTS[14];
   const nearWastelands = (x: number, z: number, margin = 0) => Math.hypot(x - WASTELANDS.x, z - WASTELANDS.z) < 46 + margin;
   // Reserve the entire forecourt, including its road approach, before random scenery.
   for (const station of FUEL_STATIONS) {
@@ -503,8 +515,9 @@ export function createGame(
     coconuts.push(matrix(topX, height - 0.3, z, 0.55, 0.4, 0.55));
     shadows.push(matrix(x + 1, 0.016, z + 1, 3.5, 2.4, 1, -Math.PI / 2));
   }
-  batch(palmTrunk, wood, trunks);
-  batch(leafGeometry, leaves, fronds);
+  batch(palmTrunk, wood, trunks).castShadow = true;
+  const palmLeaves = batch(leafGeometry, leaves, fronds);
+  palmLeaves.castShadow = true;
   batch(sphere, green, coconuts);
   batch(circle, shadowMat, shadows);
 
@@ -643,6 +656,7 @@ export function createGame(
   );
 
   const car = new THREE.Group();
+  car.name = "PlayerCar";
   scene.add(car);
   const wheelGeometry = geometry(new THREE.TorusGeometry(0.325, 0.105, 10, 32));
   wheelGeometry.rotateY(Math.PI / 2); // Axle is local X; the vehicle points down local -Z.
@@ -653,7 +667,7 @@ export function createGame(
   const brake = paint("#747b7e", 0.45, 0.8);
   const caliper = paint("#ba4a34", 0.5, 0.35);
   const bodyPaint = VEHICLES.map((vehicle) => material(new THREE.MeshPhysicalMaterial({
-    color: vehicle.color, roughness: 0.27, metalness: 0.55, clearcoat: 1, clearcoatRoughness: 0.14,
+    color: vehicle.color, roughness: 0.2, metalness: 0.68, clearcoat: 1, clearcoatRoughness: 0.14,
   })));
   const plateCanvas = document.createElement("canvas");
   plateCanvas.width = 256;
@@ -679,6 +693,7 @@ export function createGame(
     const a = i * Math.PI * 2 / 5;
     spokeMatrices.push(matrix(0, Math.cos(a) * 0.145, Math.sin(a) * 0.145, 0.034, 0.2, 0.045, a));
   }
+  let touringWheel: THREE.Object3D | null = null;
   const wheelPivots: THREE.Group[] = [];
   const wheelRolls: THREE.Group[] = [];
   const carBounds = new THREE.Box3();
@@ -852,6 +867,9 @@ export function createGame(
       }
     }
     model.traverse((child) => { if (child instanceof THREE.Mesh) { child.castShadow = true; child.receiveShadow = true; } });
+    if (touringWheel) for (const roll of wheelRolls) {
+      roll.clear(); roll.add(touringWheel.clone(true));
+    }
     // Measure the unrotated model, including mirrors, bumpers and the spare wheel.
     model.updateMatrixWorld(true);
     carBounds.makeEmpty();
@@ -1008,6 +1026,7 @@ export function createGame(
   for (const x of [-4, 4]) for (const z of [-4, 4]) mesh(sphere, headlight, x, 0.1, z, 0.12, 0.12, 0.12, landingPad);
 
   const avatar = new THREE.Group();
+  avatar.name = "PlayerAvatar";
   scene.add(avatar);
   const skin = paint("#b8805c");
   const shirt = paint("#c6baa0");
@@ -1197,6 +1216,12 @@ export function createGame(
   const collisionBox = new THREE.Box3();
   const collisionPoint = new THREE.Vector3();
 
+  let online: RoomSnapshot | null = null;
+  let verticalVelocity = 0;
+  const remoteActors = new Map<string, THREE.Group>();
+  const supplyActors = new Map<string, THREE.Mesh>();
+  const zoneWall = mesh(geometry(new THREE.CylinderGeometry(1, 1, 24, 96, 1, true)), material(new THREE.MeshBasicMaterial({ color: "#6ba5ff", transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false })), 0, 12, 0);
+  zoneWall.visible = false;
   let driving = true;
   let heading = 0;
   let speed = 0;
@@ -1235,6 +1260,69 @@ export function createGame(
   let flashRemaining = 0;
   let paused = false;
   let disposed = false;
+  new GLTFLoader().load("/models/coastal-assets.glb", ({ scene: library }) => {
+    const assetGeometries = new Set<THREE.BufferGeometry>();
+    const assetMaterials = new Set<THREE.Material>();
+    const assetTextures = new Set<THREE.Texture>();
+    library.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      child.castShadow = child.receiveShadow = true;
+      assetGeometries.add(child.geometry);
+      for (const mat of Array.isArray(child.material) ? child.material : [child.material]) {
+        assetMaterials.add(mat);
+        for (const value of Object.values(mat)) if (value instanceof THREE.Texture) assetTextures.add(value);
+      }
+    });
+    if (disposed) {
+      assetGeometries.forEach(g => g.dispose()); assetMaterials.forEach(m => m.dispose()); assetTextures.forEach(t => t.dispose()); return;
+    }
+    assetGeometries.forEach(g => geometries.add(g)); assetMaterials.forEach(m => materials.add(m));
+    assetTextures.forEach(t => { t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); textures.add(t); });
+    touringWheel = library.getObjectByName("TouringWheel") ?? null;
+    if (touringWheel) for (const cached of carModels.values()) for (const roll of cached.rolls) {
+      roll.clear(); roll.add(touringWheel.clone(true));
+    }
+    const dress = (name: string, parent: THREE.Group, remove: (child: THREE.Object3D) => boolean) => {
+      const part = library.getObjectByName(name);
+      if (!part) return;
+      for (const child of [...parent.children]) if (remove(child)) parent.remove(child);
+      parent.add(part.clone(true));
+    };
+    // Preserve the weapon, head, pelvis and all animated joints.
+    dress("SculptedHead", head, child => child instanceof THREE.Mesh);
+    dress("TailoredTorso", body, child => child instanceof THREE.Mesh && child.position.y > -0.08 && child.position.y < 0.36);
+    for (const { hip, knee } of legs) {
+      dress("CanvasThigh", hip, child => child instanceof THREE.Mesh);
+      dress("CanvasShin", knee, child => child instanceof THREE.Mesh);
+    }
+    const blade = library.getObjectByName("PalmFrond");
+    blade?.updateMatrixWorld(true);
+    blade?.traverse(child => {
+      if (!(child instanceof THREE.Mesh)) return;
+      palmLeaves.geometry = geometry(child.geometry.clone().applyMatrix4(child.matrixWorld));
+      palmLeaves.material = child.material;
+      for (const mat of Array.isArray(child.material) ? child.material : [child.material]) mat.side = THREE.DoubleSide;
+      palmLeaves.computeBoundingSphere();
+    });
+    const shutters = library.getObjectByName("WindowShutters");
+    if (shutters) for (const home of HOMES) for (const side of [-1, 1]) {
+      const detail = shutters.clone(true); detail.position.set(home.x + side * 3.4, 2.5, home.z + 7.2); scene.add(detail);
+    }
+    // Place scenery clear of roads, door approaches, and existing structures.
+    for (let i = 0; i < 100; i++) {
+      const x = -115 + ((i * 83.17) % 410), z = -880 + ((i * 137.31) % 1810);
+      if (nearRoad(x, z, 5) || blocked(x, z, 2)) continue;
+      const isRock = i % 3 === 0;
+      const source = library.getObjectByName(isRock ? `CoastalRock${Math.floor(i / 3) % 3}` : "CoastalShrub");
+      if (!source) continue;
+      const prop = source.clone(true);
+      prop.position.set(x, 0, z); prop.rotation.y = i * 2.4;
+      const scale = isRock ? 0.8 + (i % 4) * 0.25 : 1.1;
+      prop.scale.setScalar(scale); scene.add(prop);
+      if (isRock) colliders.push({ minX: x - scale, maxX: x + scale, minZ: z - scale, maxZ: z + scale, height: scale });
+    }
+  }, undefined, () => console.warn("Coastal assets unavailable; using built-in models."));
+
   let elapsed = 0;
   let statsElapsed = 0;
   let ready = false;
@@ -1271,6 +1359,7 @@ export function createGame(
     const missionDistance = missionTarget ? Math.hypot(position.x - missionTarget.x, position.z - missionTarget.z) : 0;
     const missionProgress = missionTarget ? THREE.MathUtils.clamp(1 - missionDistance / missionStartDistance, 0, 1) : 0;
     onStats({
+      heading,
       speed: Math.round(Math.abs(driving ? speed : footSpeed) * 3.6),
       district,
       driving,
@@ -1280,7 +1369,7 @@ export function createGame(
       x: position.x,
       z: position.z,
       mode: driving ? "car" : "foot",
-      altitude: 0,
+      altitude: position.y,
       nearbyHome: nearbyHomeIndex(),
       insideHome,
       missionIndex,
@@ -1327,7 +1416,7 @@ export function createGame(
         return (lx - closestX) ** 2 + (lz - closestZ) ** 2 < radius * radius;
       });
     }
-    if (x < -136 + radius || x > 390 - radius || z < -985 + radius || z > 1025 - radius) return true;
+    if (x < -136 + radius || x > 390 - radius || z < -985 + radius || z > 1560 - radius) return true;
     return colliders.some((c) => {
       if ((c.minY ?? 0) > 2.5) return false;
       const closestX = THREE.MathUtils.clamp(x, c.minX, c.maxX);
@@ -1336,6 +1425,7 @@ export function createGame(
     });
   }
   function touchesCar(x: number, z: number, radius = 0.3, cx = car.position.x, cz = car.position.z, angle = car.rotation.y) {
+    if (online) return false;
     const dx = x - cx;
     const dz = z - cz;
     const localX = dx * Math.cos(angle) - dz * Math.sin(angle);
@@ -1354,7 +1444,7 @@ export function createGame(
     const cz = z - midX * sin + midZ * cos;
     const extentX = Math.abs(cos) * hx + Math.abs(sin) * hz;
     const extentZ = Math.abs(sin) * hx + Math.abs(cos) * hz;
-    if (cx - extentX < -136 || cx + extentX > 390 || cz - extentZ < -985 || cz + extentZ > 1025) return true;
+    if (cx - extentX < -136 || cx + extentX > 390 || cz - extentZ < -985 || cz + extentZ > 1560) return true;
     // Separating axes for an oriented vehicle against each static world box.
     return colliders.some((c) => {
       if ((c.minY ?? 0) > carBounds.max.y) return false;
@@ -1414,6 +1504,8 @@ export function createGame(
       desiredCamera.set(position.x - forwardX * distance, height, position.z - forwardZ * distance);
       lookAt.set(position.x + forwardX * (driving ? 7 : 9), driving ? 1 : 1.6 + Math.tan(aimPitch + recoil) * 9, position.z + forwardZ * (driving ? 7 : 9));
     }
+    desiredCamera.y += position.y;
+    lookAt.y += position.y;
     const factor = snap ? 1 : 1 - Math.exp(-dt * 6);
     camera.position.lerp(desiredCamera, factor);
     smoothedLookAt.lerp(lookAt, factor);
@@ -1504,6 +1596,7 @@ export function createGame(
       if (collisionBox.containsPoint(ray.origin)) return 0;
       if (ray.intersectBox(collisionBox, collisionPoint)) distance = Math.min(distance, ray.origin.distanceTo(collisionPoint));
     }
+    if (online) return distance;
     carYaw.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, car.rotation.y);
     carInverse.makeRotationFromQuaternion(carYaw).setPosition(car.position).invert();
     localRay.copy(ray).applyMatrix4(carInverse);
@@ -1528,6 +1621,9 @@ export function createGame(
       notify("Barrel obstructed. Step back from cover.");
       return;
     }
+    if (online && online.phase !== "active") return;
+    raycaster.set(origin, aimDirection);
+    onCombat?.({ type: "fire", weapon: weaponIndex, heading, pitch: aimPitch, range: obstructionDistance(raycaster.ray, spec.range) });
     ammo[weaponIndex]--;
     fireCooldown = spec.cooldown;
     audio.fire(spec.pellets, spec.automatic);
@@ -1597,6 +1693,44 @@ export function createGame(
   const validIndex = (index: number, length: number) => Number.isInteger(index) && index >= 0 && index < length;
   function command(action: GameCommand) {
     if (disposed) return;
+    if (action.type === "room") {
+      const previous = online;
+      online = action.snapshot;
+      car.visible = !online;
+      zoneWall.visible = online?.phase === "active";
+      if (!online) {
+        remoteActors.forEach(actor => scene.remove(actor)); remoteActors.clear();
+        supplyActors.forEach(actor => scene.remove(actor)); supplyActors.clear();
+        health = 100; clearInput(); resetToRoad(); emitStats(); return;
+      }
+      const self = online.players.find(p => p.id === online!.selfId);
+      if (!self) return;
+      driving = false; avatar.visible = self.health > 0; speed = 0;
+      health = self.health;
+      const starting = !previous || previous.phase !== online.phase;
+      if (starting || Math.hypot(avatar.position.x - self.x, avatar.position.z - self.z) > 1.5) avatar.position.set(self.x, 0, self.z);
+      if (starting) { clearInput(); footSpeed = 0; reloadRemaining = 0; insideHome = null; interior.visible = false; missionIndex = -1; missionMarker.visible = false; }
+      self.ammo.forEach((count, i) => { ammo[i] = count; });
+      zoneWall.scale.set(online.zone.radius, 1, online.zone.radius);
+      zoneWall.position.set(online.zone.x, 12, online.zone.z);
+      const ids = new Set(online.players.filter(p => p.id !== online!.selfId).map(p => p.id));
+      for (const [id, actor] of remoteActors) if (!ids.has(id)) { scene.remove(actor); remoteActors.delete(id); }
+      for (const remote of online.players) {
+        if (remote.id === online.selfId) continue;
+        let actor = remoteActors.get(remote.id);
+        if (!actor) { actor = avatar.clone(true); actor.name = "RemotePlayer"; scene.add(actor); remoteActors.set(remote.id, actor); actor.position.set(remote.x, 0, remote.z); }
+        actor.visible = remote.health > 0;
+        actor.userData.destination = new THREE.Vector3(remote.x, 0, remote.z);
+        actor.userData.heading = remote.heading;
+      }
+      for (const item of online.loot) {
+        let actor = supplyActors.get(item.id);
+        if (!actor) { actor = mesh(roundedBox, item.kind === "medkit" ? red : gold, item.x, .35, item.z, .65, .55, .65); supplyActors.set(item.id, actor); }
+        actor.visible = !item.taken && online.phase === "active";
+      }
+      emitStats(); return;
+    }
+    if (online && ["vehicle", "travel", "reset", "respawn", "station-travel", "home-travel", "toggle-drive", "interact", "mission-start"].includes(action.type)) { notify("Online battle royale is on foot. Leave the room to free roam."); return; }
     if (action.type === "pause") {
       paused = action.value;
       clearInput();
@@ -1614,6 +1748,7 @@ export function createGame(
       if (!action.pressed) { keys.delete(key); return; }
       if (paused || health <= 0 || keys.has(key)) return;
       keys.add(key);
+      if (key === "space" && !driving && !online && avatar.position.y <= 0.001) verticalVelocity = 5.2;
       if (key === "e") {
         if (driving || (insideHome === null && canEnterCar())) command({ type: "toggle-drive" });
         else command({ type: "interact" });
@@ -1689,6 +1824,7 @@ export function createGame(
       case "toggle-drive": toggleDrive(); break;
       case "reload":
         if (!paused && !driving && reloadRemaining <= 0 && ammo[weaponIndex] < WEAPONS[weaponIndex].capacity) {
+          onCombat?.({ type: "reload", weapon: weaponIndex, heading, pitch: aimPitch });
           reloadRemaining = WEAPONS[weaponIndex].reload;
           notify(`Reloading ${WEAPONS[weaponIndex].name}...`);
           audio.reloadStart();
@@ -1823,6 +1959,14 @@ export function createGame(
 
   function simulate(dt: number) {
     elapsed += dt;
+    for (const actor of remoteActors.values()) {
+      const target = actor.userData.destination as THREE.Vector3;
+      const moving = actor.position.distanceToSquared(target) > .002;
+      actor.position.lerp(target, 1 - Math.exp(-dt * 14));
+      actor.rotation.y = actor.userData.heading;
+      // Clone keeps the same hip/knee hierarchy; animate remote walking without sharing transforms.
+      actor.children.slice(1, 3).forEach((hip, i) => { hip.rotation.x = moving ? Math.sin(elapsed * 10 + i * Math.PI) * .45 : .12; });
+    }
     oceanTime.value = elapsed;
     foam.position.y = Math.sin(elapsed * 0.8) * 0.035;
     gameMinutes = (gameMinutes + dt * 3) % 1440;
@@ -1870,13 +2014,24 @@ export function createGame(
       const offroad = spec.shape === "offroad";
       const boost = keys.has("shift") && forward > 0;
       const maxSpeed = spec.speed / 3.6 * (onRoad ? 1 : offroad ? 0.82 : 0.56);
-      if (forward && fuel[vehicleIndex] > 0) speed += forward * (boost ? 19 : 12) * dt;
-      else speed = THREE.MathUtils.damp(speed, 0, forward * speed < 0 ? 7 : 0.65, dt);
-      if (keys.has("space")) speed = THREE.MathUtils.damp(speed, 0, 7, dt);
+      const previousSpeed = speed;
+      const braking = keys.has("space") || forward * speed < -0.1;
+      if (braking) {
+        const brakingForce = (onRoad ? 12 : 7) * dt;
+        speed = Math.sign(speed) * Math.max(0, Math.abs(speed) - brakingForce);
+      } else if (forward && fuel[vehicleIndex] > 0) {
+        const powerFalloff = 1 - 0.42 * Math.min(1, Math.abs(speed) / maxSpeed);
+        speed += forward * (boost ? 19 : 12) * powerFalloff * dt;
+      } else speed = THREE.MathUtils.damp(speed, 0, 0.22 + Math.abs(speed) * 0.009 + (onRoad ? 0 : 0.55), dt);
       speed = THREE.MathUtils.clamp(speed, -12, maxSpeed * (boost ? 1.14 : 1));
       if (Math.abs(speed) < 0.03) speed = 0;
       steering = THREE.MathUtils.damp(steering, turn, 8, dt);
-      const turnAngle = steering * Math.min(Math.abs(speed) / 7, 1) * (1.65 - Math.min(Math.abs(speed) / 75, 0.8)) * (spec.handling / 88) * Math.sign(speed) * dt;
+      const wheelbase = offroad ? 2.9 : 2.75;
+      const steerAngle = steering * (0.48 / (1 + Math.abs(speed) * 0.022));
+      const requestedYaw = speed * Math.tan(steerAngle) / wheelbase;
+      const grip = (onRoad ? 9.2 : offroad ? 6.3 : 4.2) * (spec.handling / 88);
+      const yawRate = THREE.MathUtils.clamp(requestedYaw, -grip / Math.max(Math.abs(speed), 1), grip / Math.max(Math.abs(speed), 1));
+      const turnAngle = yawRate * dt;
       const distance = speed * dt;
       // Substeps keep a boosted car from tunneling through narrow building corners.
       const steps = Math.max(1, Math.ceil(Math.abs(distance) / 0.65));
@@ -1909,8 +2064,16 @@ export function createGame(
       fuel[vehicleIndex] = Math.max(0, previousFuel - Math.abs(traveled) * 0.015);
       if (previousFuel > 0 && fuel[vehicleIndex] === 0 && health > 0) notify("Tank empty. Coast to a stop or tow to a petrol station.");
       car.rotation.y = heading;
-      car.rotation.z = THREE.MathUtils.damp(car.rotation.z, -steering * Math.min(Math.abs(speed) / 45, 1) * 0.035, 5, dt);
-      wheelPivots.forEach((wheel, index) => { wheel.rotation.y = index < 2 ? steering * 0.35 : 0; });
+      const acceleration = THREE.MathUtils.clamp((speed - previousSpeed) / dt, -15, 15);
+      // Load transfer and surface vibration: visual chassis motion never changes collision coordinates.
+      const chassis = carModels.get(vehicleIndex)!.model;
+      chassis.rotation.x = THREE.MathUtils.damp(chassis.rotation.x, -acceleration * 0.003, 7, dt);
+      chassis.rotation.z = THREE.MathUtils.damp(chassis.rotation.z, -yawRate * speed * (offroad ? 0.009 : 0.005), 6, dt);
+      chassis.position.y = THREE.MathUtils.damp(chassis.position.y, Math.sin(position.z * 2.7 + position.x) * (onRoad ? 0.006 : 0.035) * Math.min(Math.abs(speed) / 8, 1), 16, dt);
+      wheelPivots.forEach((wheel, index) => {
+        const radius = Math.abs(steerAngle) > 0.001 ? wheelbase / Math.tan(steerAngle) : 1e6;
+        wheel.rotation.y = index < 2 ? Math.atan(wheelbase / (radius - wheel.position.x)) : 0;
+      });
       wheelRolls.forEach((wheel) => { wheel.rotation.x -= traveled / (offroad ? 0.525 : 0.43); });
       audio.setEngine(true, Math.abs(speed) / maxSpeed);
     } else {
@@ -1928,6 +2091,9 @@ export function createGame(
         if (!blocked(x, position.z, 0.3) && !touchesCar(x, position.z)) position.x = x;
         if (!blocked(position.x, z, 0.3) && !touchesCar(position.x, z)) position.z = z;
       }
+      verticalVelocity -= 9.81 * dt;
+      avatar.position.y = Math.max(0, avatar.position.y + verticalVelocity * dt);
+      if (avatar.position.y === 0) verticalVelocity = 0;
       avatar.rotation.y = heading;
       const traveled = Math.hypot(position.x - startX, position.z - startZ);
       const motionSign = Math.sign(footSpeed);
@@ -1944,10 +2110,20 @@ export function createGame(
       const stride = Math.min(1, Math.abs(footSpeed) / (running ? 5.5 : 2.5));
       legs.forEach(({ hip, knee, ankle }, index) => {
         const phase = gait + index * Math.PI;
-        const swing = Math.sin(phase);
-        hip.rotation.x = THREE.MathUtils.damp(hip.rotation.x, moving ? swing * (running ? 0.75 : 0.48) * motionSign * stride : 0, 18, dt);
-        knee.rotation.x = THREE.MathUtils.damp(knee.rotation.x, moving ? -Math.max(0, -swing * motionSign) * (running ? 1.25 : 0.85) * stride - 0.08 : -0.035, 18, dt);
-        ankle.rotation.x = -(hip.rotation.x + knee.rotation.x) * 0.55;
+        const cycle = ((phase / (Math.PI * 2)) % 1 + 1) % 1;
+        const stance = cycle < 0.62;
+        const t = stance ? cycle / 0.62 : (cycle - 0.62) / 0.38;
+        const strideLength = (running ? 0.8 : 0.48) * stride;
+        const footZ = moving ? (stance ? -0.5 + t : 0.5 - t) * strideLength * motionSign : 0;
+        const lift = moving && !stance ? Math.sin(t * Math.PI) * (running ? 0.24 : 0.11) * stride : 0;
+        const down = 0.765 - lift;
+        const reach = Math.min(0.779, Math.hypot(down, footZ));
+        const kneeAngle = Math.PI - Math.acos(THREE.MathUtils.clamp((0.4 ** 2 + 0.38 ** 2 - reach ** 2) / (2 * 0.4 * 0.38), -1, 1));
+        const hipAngle = Math.acos(THREE.MathUtils.clamp((0.4 ** 2 + reach ** 2 - 0.38 ** 2) / (2 * 0.4 * reach), -1, 1)) - Math.atan2(footZ, down);
+        hip.rotation.x = THREE.MathUtils.damp(hip.rotation.x, hipAngle, 24, dt);
+        knee.rotation.x = THREE.MathUtils.damp(knee.rotation.x, -kneeAngle, 24, dt);
+        ankle.rotation.x = -(hip.rotation.x + knee.rotation.x);
+
       });
       body.position.y = THREE.MathUtils.damp(body.position.y, 1.13 + (moving ? Math.cos(gait * 2) * 0.025 : Math.sin(elapsed * 1.8) * 0.003), 16, dt);
       body.rotation.z = THREE.MathUtils.damp(body.rotation.z, moving ? Math.sin(gait) * 0.025 : 0, 12, dt);
@@ -2003,6 +2179,26 @@ export function createGame(
 
   return {
     command,
+    getVehiclePreview(index: number) {
+      if (!validIndex(index, VEHICLES.length) || disposed) return "";
+      if (!carModels.has(index)) { buildCar(index); buildCar(vehicleIndex); }
+      const preview = new THREE.Scene(); preview.background = new THREE.Color("#142b2c"); preview.environment = scene.environment;
+      const model = carModels.get(index)!.model.clone(true); model.position.set(0, 0, 0); model.rotation.set(0, 0, 0); preview.add(model);
+      preview.add(new THREE.HemisphereLight("#ecf4ff", "#545040", 2.2));
+      const light = new THREE.DirectionalLight("#fff2dc", 4); light.position.set(4, 6, 3); preview.add(light);
+      const rim = new THREE.DirectionalLight("#b0d8ff", 3); rim.position.set(-4, 3, -3); preview.add(rim);
+      const lens = new THREE.PerspectiveCamera(36, 16 / 9, .1, 40); lens.position.set(6.4, 3.1, -7.6); lens.lookAt(0, .8, 0);
+      const target = new THREE.WebGLRenderTarget(640, 360);
+      const previous = renderer.getRenderTarget();
+      try {
+        renderer.setRenderTarget(target); renderer.render(preview, lens);
+        const pixels = new Uint8Array(640 * 360 * 4); renderer.readRenderTargetPixels(target, 0, 0, 640, 360, pixels);
+        const output = document.createElement("canvas"); output.width = 640; output.height = 360;
+        const context = output.getContext("2d")!, data = context.createImageData(640, 360);
+        for (let y = 0; y < 360; y++) data.data.set(pixels.subarray((359-y)*640*4,(360-y)*640*4),y*640*4);
+        context.putImageData(data,0,0); return output.toDataURL("image/png");
+      } finally { renderer.setRenderTarget(previous); target.dispose(); model.traverse(o => { if (o instanceof THREE.InstancedMesh) o.dispose(); }); preview.clear(); }
+    },
     dispose() {
       if (disposed) return;
       disposed = true;

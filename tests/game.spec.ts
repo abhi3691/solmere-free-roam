@@ -41,6 +41,7 @@ test("loads, drives, resets, changes vehicles, travels and shoots", async ({ pag
   await page.getByRole("button", { name: "Head out on foot" }).click();
   await expect(page.getByRole("button", { name: "Return to car" })).toBeVisible();
   await expect(page.locator(".drive-details")).toContainText("30 / 30");
+  await page.screenshot({ path: testInfo.outputPath("character.png") });
   if (testInfo.project.name === "mobile") await page.getByRole("button", { name: "FIRE", exact: true }).click();
   else await page.keyboard.press("f");
   await expect(page.locator(".drive-details")).not.toContainText("30 / 30");
