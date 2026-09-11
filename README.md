@@ -1,6 +1,6 @@
 # Solmere Free Roam
 
-A playable 3D browser sandbox with solo free roam and private online battle-royale rooms built with Next.js, React, TypeScript, and Three.js. Nearly every model is generated in code at runtime; the Wastelands Edge district loads one pre-baked, original procedural glTF diorama from `/public/models`.
+A playable 3D browser sandbox with solo free roam and private online battle-royale rooms built with Next.js, React, TypeScript, and Three.js. The procedural world uses original Blender-built character, weapon, vehicle-detail, foliage, and architectural assets from `/public/models`, alongside the Wastelands Edge diorama.
 
 ## Run
 
@@ -40,7 +40,7 @@ Open http://localhost:3000 and select **Let's drive**.
 | Drag scene on foot | Turn to aim |
 | 1 through 6 | Switch weapon |
 | R | Reload |
-| C | Change camera |
+| C | Toggle first/third person on foot; cycle chase cameras in a car |
 | Escape | Pause / resume |
 | Reset Ride button | Return to nearest clear road |
 
@@ -83,7 +83,7 @@ See CLAUDE.md for lightweight development rules and module ownership.
 
 ## Blender realism pass
 
-The editable source `public/models/coastal-assets.blend` and generator `scripts/build-assets.py` create a sculpted head, fitted clothing, articulated limb surfaces, fabric/skin textures, treaded wheels, broad palm fronds, shutters, rocks, and shrubs. These replace parts of the runtime models. The garage renders the actual five vehicles instead of using illustrations. Copper Bay, Cedar Reach, and Lastlight extend the southern roads and destinations.
+The editable source `public/models/coastal-assets.blend` and generator `scripts/build-assets.py` create a sculpted head, fitted clothing, articulated limb surfaces, fabric/skin textures, treaded wheels, six detailed weapon props, broad palm fronds, shutters, rocks, and shrubs. These replace parts of the runtime models. The garage renders the actual five vehicles instead of using illustrations. Copper Bay, Cedar Reach, and Lastlight extend the southern roads and destinations.
 
 Driving uses braking before reversing, speed-dependent steering, a lateral grip limit, and visual suspension pitch/roll. Walking uses leg inverse kinematics and solo jumping uses gravity. The simulation remains lightweight and procedural, not a full rigid-body engine or fully photorealistic environment.
 
@@ -100,3 +100,5 @@ Mobile Play requests fullscreen and landscape when supported. A portrait rotatio
 Run a **single persistent Node server** using `npm run build -- --webpack` followed by `npm run start -- --hostname 0.0.0.0`, behind an HTTPS reverse proxy. Both players must use the same hosted address. `Dockerfile` provides a deployable container (`docker build -t solmere .`, then `docker run -p 3000:3000 solmere`). The container definition is provided but has not been built in this workspace.
 
 Room state is in memory and disappears on restart. Do not deploy this room implementation to stateless serverless functions or multiple replicas without adding shared state. Server checks cover room authorization, movement distance, fire rate, ammunition, loot, health, zone damage and winners. It still trusts client-supplied aim/cover distance and does not provide production anti-cheat, lag compensation, accounts, matchmaking, voice chat, or persistent rankings. It is a private-room prototype, not a PUBG/Call of Duty-scale service. No public server has been deployed by this change.
+
+The **FPV / TPV** button switches explicitly between eye-level and third-person views. The armory now renders all six in-game weapons, and the garage renders all five cars. These are original game models, not photographs or licensed brand replicas.

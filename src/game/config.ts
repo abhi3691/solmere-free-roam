@@ -96,6 +96,7 @@ export type GameStats = {
 };
 export const INITIAL_STATS: GameStats = { view: "third", heading: 0, speed: 0, district: 7, driving: true, ammo: 12, weaponAmmo: WEAPONS.map((weapon) => weapon.capacity), hits: 0, x: 0, z: 0, mode: "car", altitude: 0, nearbyHome: null, insideHome: null, missionIndex: -1, missionsCompleted: 0, missionProgress: 0, missionDistance: 0, credits: 100, health: 100, stamina: 100, fuel: 65, clock: "06:00", nearbyStation: null, canEnterCar: false, weaponIndex: 0, reloading: false, message: "" };
 export type GameCommand =
+  | { type: "snapshot" }
   | { type: "room"; snapshot: RoomSnapshot | null }
   | { type: "vehicle"; index: number }
   | { type: "travel"; index: number }

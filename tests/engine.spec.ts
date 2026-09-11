@@ -69,8 +69,8 @@ const browserFixture = `
       if (pending.length !== 1) throw new Error('Expected one engine RAF callback');
       for (const callback of pending) callback(now);
     }
-    // Camera is a non-simulation command that publishes a fresh stats snapshot.
-    controller.command({ type: 'camera' });
+    // Publish fresh stats without changing the camera, muzzle height, or simulation.
+    controller.command({ type: 'snapshot' });
   }
   advance(0.1);
   if (!ready || !scene || !renderer.getContext().getParameter(renderer.getContext().VERSION)) {
@@ -545,4 +545,20 @@ test("jump follows gravity and lands back on the ground", async ({ page }) => {
   });
   expect(result.raised).toBeGreaterThan(.8);
   expect(result.landed).toBe(0);
+});
+
+test("first-person view hides the local head and restores it in third person", async ({ page }) => {
+  const views = await page.evaluate(() => {
+    const e = window.engine;
+    e.controller.command({ type: "toggle-drive" });
+    e.controller.command({ type: "view", mode: "first" });
+    const first = { view: e.stats.view, head: e.avatar.getObjectByName("PlayerHead")?.visible };
+    e.controller.command({ type: "fire" });
+    const fired = e.stats.ammo;
+    e.controller.command({ type: "view", mode: "third" });
+    return { first, fired, third: { view: e.stats.view, head: e.avatar.getObjectByName("PlayerHead")?.visible } };
+  });
+  expect(views.first).toEqual({ view: "first", head: false });
+  expect(views.third).toEqual({ view: "third", head: true });
+  expect(views.fired).toBe(11);
 });

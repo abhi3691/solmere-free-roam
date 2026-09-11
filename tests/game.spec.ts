@@ -41,11 +41,21 @@ test("loads, drives, resets, changes vehicles, travels and shoots", async ({ pag
   await page.getByRole("button", { name: /Mistvale Highland escape/ }).click();
   await expect(page.locator(".location-tag h2")).toHaveText("Mistvale");
   await page.getByRole("button", { name: "Loadout", exact: true }).click();
+  await expect(page.locator(".weapon-render img")).toHaveCount(6);
+  await page.screenshot({ path: testInfo.outputPath("armory.png") });
   await page.getByRole("button", { name: /Carbine/ }).click();
   await page.getByRole("button", { name: "Head out on foot" }).click();
   await expect(page.getByRole("button", { name: "Return to car" })).toBeVisible();
   await expect(page.locator(".drive-details")).toContainText("30 / 30");
+  if (testInfo.project.name === "mobile") {
+    await page.getByRole("button", { name: "Jump", exact: true }).click({ trial: true });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
   await page.screenshot({ path: testInfo.outputPath("character.png") });
+  await page.getByRole("button", { name: "Switch to first person" }).click();
+  await expect(page.getByRole("button", { name: "Switch to third person" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("first-person.png") });
+  await page.getByRole("button", { name: "Switch to third person" }).click();
   if (testInfo.project.name === "mobile") await page.getByRole("button", { name: "FIRE", exact: true }).click();
   else await page.keyboard.press("f");
   await expect(page.locator(".drive-details")).not.toContainText("30 / 30");
@@ -112,12 +122,29 @@ test("online lobby creates an invite and starts a match with a second client", a
   const guest = await (await request.post("/api/rooms", { data: { action: "join", code, name: "Test Guest" } })).json();
   await expect(page.getByText("Test Guest", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Start battle royale" }).click();
+  await expect(page.locator(".battle-hud")).toContainText("2 alive");
   const portrait = page.getByRole("button", { name: "Continue in portrait" });
   if (await portrait.isVisible()) await portrait.click();
-  await expect(page.locator(".battle-hud")).toContainText("2 alive");
   await expect(page.locator(".battle-backpack")).toContainText("Medkits 1");
   await page.getByRole("button", { name: "Online", exact: true }).click();
   await page.getByRole("button", { name: "Leave room" }).click();
   await expect(page.getByRole("button", { name: "Create room", exact: true })).toBeVisible();
   await request.post("/api/rooms", { data: { action: "leave", code, token: guest.token } });
+});
+
+test("mobile landscape keeps launch and touch controls reachable", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Touch landscape layout");
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto("/");
+  const start = page.getByRole("button", { name: "Let's drive" });
+  await expect(start).toBeEnabled({ timeout: 45000 });
+  await start.click();
+  await expect(page.locator(".rotate-prompt")).toBeHidden();
+  for (const name of ["Steer left", "Steer right", "Accelerate or walk forward", "Reverse or walk backward"]) {
+    const button = page.getByRole("button", { name, exact: true });
+    await expect(button).toBeVisible();
+    await button.click({ trial: true });
+  }
+  await page.screenshot({ path: testInfo.outputPath("landscape.png") });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

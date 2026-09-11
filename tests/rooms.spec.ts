@@ -68,10 +68,36 @@ test("zone shrinks over server time and disconnected players are eliminated", ()
 });
 
 test("room endpoint validates input and connects separate clients", async ({ request }) => {
+  const denied = await request.post("/api/rooms", { headers: { Origin: "https://unrelated.example" }, data: { action: "create" } });
+  expect(denied.status()).toBe(403);
   const bad = await request.post("/api/rooms", { data: { action: "fire", weapon: 90 } }); expect(bad.status()).toBe(400);
-  const host = await (await request.post("/api/rooms", { data: { action: "create", name: "Browser host" } })).json();
+  const host = await (await request.post("/api/rooms", { headers: { Origin: "http://127.0.0.1:3100" }, data: { action: "create", name: "Browser host" } })).json();
   const guest = await (await request.post("/api/rooms", { data: { action: "join", name: "Browser guest", code: host.snapshot.code } })).json();
   const started = await request.post("/api/rooms", { data: { action: "start", code: host.snapshot.code, token: host.token } });
   expect(started.ok()).toBe(true); expect((await started.json()).snapshot.players).toHaveLength(2);
   for (const user of [host, guest]) await request.post("/api/rooms", { data: { action: "leave", code: host.snapshot.code, token: user.token } });
+});
+
+test("armor absorbs damage, medkits take time, and looting unlocks weapons", () => {
+  const now = Date.now();
+  const h = credentials(roomAction({ action: "create" }, now));
+  const g = credentials(roomAction({ action: "join", code: h.code }, now));
+  roomAction({ action: "start", ...h }, now);
+  roomAction({ action: "sync", ...g, x: 4, z: -75 }, now + 1000);
+  for (let i = 1; i <= 4; i++) roomAction({ action: "sync", ...h, x: 4, z: -105 + i * 5 }, now+i*1000);
+  const equipped = snap(roomAction({ action: "pickup", ...h }, now+4001));
+  expect(equipped.players[0].armor).toBe(100);
+  const shot = snap(roomAction({ action: "fire", ...g, weapon: 0, heading: 0, pitch: 0 }, now+4500));
+  expect(shot.players[0].health).toBe(90); expect(shot.players[0].armor).toBe(85);
+  const healing = snap(roomAction({ action: "heal", ...h }, now+4600));
+  expect(healing.players[0]).toMatchObject({ medkits: 0, healing: true, health: 90 });
+  expect(snap(roomAction({ action: "sync", ...h }, now+7000)).players[0].health).toBe(90);
+  expect(snap(roomAction({ action: "sync", ...h }, now+7700)).players[0]).toMatchObject({ health: 100, healing: false });
+  roomAction({ action: "sync", ...h, x: -1, z: -90 }, now+8700);
+  roomAction({ action: "sync", ...h, x: -4, z: -95 }, now+9700);
+  expect(snap(roomAction({ action: "pickup", ...h }, now+9701)).players[0].medkits).toBe(1);
+  for (let i=1; i<=4; i++) roomAction({ action: "sync", ...h, x:-4,z:-95-i*5 },now+9700+i*1000);
+  const looted = snap(roomAction({ action: "pickup", ...h },now+13701));
+  expect(looted.players[0].weapons[3]).toBe(true); expect(looted.players[0].ammo[3]).toBe(32);
+  roomAction({ action: "leave", ...h },now+13800); roomAction({ action: "leave", ...g },now+13800);
 });

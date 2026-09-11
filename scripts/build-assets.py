@@ -67,9 +67,9 @@ for side in [-1,1]:
     for i in range(5):
         e=ell('Cloth fold',g,fabric,(side*.15,-.02+i*.048,-.104),(.065,.008,.025)); e.rotation_euler[1]=side*.22
 for i in range(5): ell('Button',g,alloy,(0,-.045+i*.069,-.144),(.006,.006,.004))
-g=group('CanvasThigh'); loft('Thigh',g,denim,[(.025,.094,.095),(-.04,.094,.098),(-.16,.085,.091),(-.29,.073,.08),(-.40,.072,.077)])
+g=group('CanvasThigh'); loft('Thigh',g,denim,[(.025,.094,.095),(-.04,.094,.098),(-.16,.085,.091),(-.29,.073,.08),(-.39,.072,.077),(-.405,.072,.077)])
 for i in range(4): ell('Knee crease',g,denim,(0,-.33+i*.015,-.062),(.075,.007,.02))
-g=group('CanvasShin'); loft('Calf',g,denim,[(.012,.073,.078),(-.06,.078,.082),(-.14,.072,.086),(-.26,.058,.066),(-.38,.055,.061)])
+g=group('CanvasShin'); loft('Calf',g,denim,[(.022,.073,.078),(.005,.073,.078),(-.06,.078,.082),(-.14,.072,.086),(-.26,.058,.066),(-.38,.055,.061)])
 # Complete rolling wheel on the local X axle. Original game steering pivots remain functional.
 g=group('TouringWheel')
 bpy.ops.mesh.primitive_torus_add(major_radius=.325,minor_radius=.105,major_segments=64,minor_segments=16,rotation=(0,math.pi/2,0)); finish(bpy.context.object,'Rounded tire carcass',g,rubber)
@@ -131,7 +131,7 @@ for side in [-1,1]:
 ell('Upper lip',g,lips,(0,-.079,-.107),(.032,.005,.009))
 ell('Lower lip',g,lips,(0,-.089,-.106),(.028,.006,.008))
 ell('Hair cap',g,hair,(0,.115,.026),(.121,.07,.107))
-ell('Back hair',g,hair,(0,.022,.093),(.104,.112,.028))
+ell('Back hair',g,hair,(0,.025,.102),(.11,.12,.047))
 for i in range(32):
     x=-.105+i*.0067
     ell('Combed strand',g,hair,(x,.153-abs(x)*.18,.006),(.004,.019,.076))
@@ -174,6 +174,51 @@ for side in [-1,1]:
     for i in range(14):
         o=cube('Louver',g,wood,(side*1.13,-.78+i*.12,-.055),(.36,.08,.045),.008); o.rotation_euler[0]=.25
 cube('Stone sill',g,rockmat,(0,-.96,0),(2.85,.12,.33),.018)
+
+# Six original detailed weapon props. Dimensions match the game's muzzle anchors.
+gunmetal=mat('Anodized gunmetal',(.07,.082,.09),.36,.72)
+polymer=mat('Matte grip polymer',(.035,.043,.041),.83)
+steel=mat('Machined steel',(.23,.26,.27),.3,.85)
+def tube(name,g,m,p,r,length):
+    bpy.ops.mesh.primitive_cylinder_add(vertices=24,radius=r,depth=length,location=pos(p),rotation=(math.pi/2,0,0))
+    return finish(bpy.context.object,name,g,m)
+for slot,length in enumerate([.16,.4,.34,.23,.6,.24]):
+    g=group('DetailedWeapon'+str(slot))
+    long=slot in [1,2,3,4]
+    cube('Receiver',g,gunmetal,(0,.07,-.095),(.076,.087,.27 if long else .21),.009)
+    grip=cube('Grip',g,polymer,(0,-.025,.006),(.058,.15,.076),.012); grip.rotation_euler[0]=-.16
+    for i in range(7): cube('Grip stippling',g,gunmetal,(0,-.075+i*.014,.046),(.052,.005,.005),.001)
+    tube('Barrel',g,steel,(0,.078,-.22-length/2),.017 if slot != 2 else .025,length)
+    tube('Muzzle recess',g,polymer,(0,.078,-.224-length),.012 if slot != 2 else .021,.008)
+    cube('Rear sight',g,steel,(0,.126,-.008),(.052,.022,.025),.004)
+    cube('Front sight',g,steel,(0,.111,-.21-length),(.015,.029,.018),.002)
+    bpy.ops.mesh.primitive_torus_add(major_radius=.034,minor_radius=.005,major_segments=20,minor_segments=6,location=pos((0,-.025,-.084)),rotation=(0,math.pi/2,0)); finish(bpy.context.object,'Trigger guard',g,gunmetal)
+    cube('Trigger',g,steel,(0,-.014,-.079),(.009,.03,.01),.003)
+    cube('Ejection port',g,polymer,(.04,.084,-.082),(.004,.031,.065),.002)
+    cube('Bolt',g,steel,(.044,.085,-.065),(.009,.013,.03),.002)
+    if long:
+        cube('Stock',g,polymer,(0,.05,.165),(.067,.112,.22 if slot != 3 else .14),.013)
+        cube('Butt pad',g,polymer,(0,.046,.281 if slot != 3 else .24),(.08,.137,.02),.008)
+        cube('Handguard',g,wood if slot == 2 else polymer,(0,.075,-.29),(.08,.085,.18),.012)
+        for i in range(9):
+            cube('Vent',g,gunmetal,(.043,.085,-.215-i*.018),(.008,.032,.008),.002)
+            cube('Rail tooth',g,steel,(0,.122,-.20-i*.018),(.063,.008,.007),.001)
+        if slot != 2:
+            magazine=cube('Magazine',g,polymer,(0,-.065,-.115),(.053,.19,.078),.009); magazine.rotation_euler[0]=-.14
+            for i in range(3): cube('Magazine groove',g,steel,(.029,-.065,-.14+i*.018),(.003,.13,.004),.001)
+        else: tube('Magazine tube',g,gunmetal,(0,.035,-.36),.018,.31)
+    else:
+        for i in range(7): cube('Slide serration',g,steel,(.04,.083,-.022-i*.009),(.004,.05,.003),.001)
+    if slot == 4:
+        cube('Scope mount',g,steel,(0,.137,-.095),(.048,.035,.13),.003)
+        tube('Optic',g,polymer,(0,.19,-.12),.035,.26)
+        tube('Objective glass',g,iris,(0,.19,-.254),.03,.004)
+        tube('Turret',g,steel,(.035,.19,-.1),.015,.027)
+    if slot == 5:
+        tube('Cylinder',g,steel,(0,.067,-.051),.053,.087)
+        for i in range(6):
+            a=i*math.tau/6
+            tube('Chamber detail',g,polymer,(math.cos(a)*.035,.067+math.sin(a)*.035,-.098),.01,.006)
 
 # Merge static pieces per asset; retain material slots without hundreds of draw calls.
 for root in [o for o in bpy.context.scene.objects if o.type == 'EMPTY']:

@@ -120,6 +120,8 @@ export function createGame(
   const sphere = geometry(new THREE.SphereGeometry(1, 20, 12));
   const circle = geometry(new THREE.CircleGeometry(1, 24));
   const asphalt = textured("#434748", "road", true);
+  // Coplanar terrain and roads lose depth precision at shallow camera angles.
+  asphalt.polygonOffset = true; asphalt.polygonOffsetFactor = -1; asphalt.polygonOffsetUnits = -1;
   const sand = textured("#d6c392", "earth", true);
   const grass = textured("#708751", "earth", true);
   const white = paint("#f6eddb");
@@ -276,7 +278,9 @@ export function createGame(
       }
     }
   }
-  batch(box, white, dashes);
+  const roadMarkings = material(white.clone());
+  roadMarkings.polygonOffset = true; roadMarkings.polygonOffsetFactor = -2; roadMarkings.polygonOffsetUnits = -2;
+  batch(box, roadMarkings, dashes);
 
   // Reserve every home, including its veranda and approach, before placing scenery.
   const homeColliders: Collider[] = HOMES.map((home) => ({ minX: home.x - 6, maxX: home.x + 6, minZ: home.z - 7, maxZ: home.z + 7, height: 7.6 }));
@@ -705,6 +709,8 @@ export function createGame(
     spokeMatrices.push(matrix(0, Math.cos(a) * 0.145, Math.sin(a) * 0.145, 0.034, 0.2, 0.045, a));
   }
   let touringWheel: THREE.Object3D | null = null;
+  const detailedWeapons = new Map<number, THREE.Object3D>();
+  let detailedWeapon: THREE.Object3D | null = null;
   const wheelPivots: THREE.Group[] = [];
   const wheelRolls: THREE.Group[] = [];
   const carBounds = new THREE.Box3();
@@ -1063,6 +1069,7 @@ export function createGame(
   mesh(roundedBox, chrome, 0, -0.085, -0.139, 0.065, 0.048, 0.02, body);
   mesh(cylinder, skin, 0, 0.39, 0, 0.074, 0.14, 0.073, body);
   const head = new THREE.Group();
+  head.name = "PlayerHead";
   head.position.set(0, 0.53, -0.008);
   body.add(head);
   mesh(sphere, skin, 0, 0, 0, 0.123, 0.163, 0.123, head);
@@ -1172,6 +1179,13 @@ export function createGame(
   revolverCylinder.rotation.x = Math.PI / 2;
   revolverCylinder.name = "revolver";
   revolverCylinder.visible = false;
+  function showDetailedWeapon(index: number) {
+    const source = detailedWeapons.get(index);
+    if (!source) return;
+    if (detailedWeapon) weapon.remove(detailedWeapon);
+    for (const child of weapon.children) child.visible = false;
+    detailedWeapon = source.clone(true); weapon.add(detailedWeapon);
+  }
   const armDown = new THREE.Vector3(0, -1, 0);
   const armTarget = new THREE.Vector3();
   const armDirection = new THREE.Vector3();
@@ -1293,6 +1307,11 @@ export function createGame(
     }
     assetGeometries.forEach(g => geometries.add(g)); assetMaterials.forEach(m => materials.add(m));
     assetTextures.forEach(t => { t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); textures.add(t); });
+    for (let index = 0; index < WEAPONS.length; index++) {
+      const prop = library.getObjectByName(`DetailedWeapon${index}`);
+      if (prop) detailedWeapons.set(index, prop);
+    }
+    showDetailedWeapon(weaponIndex);
     touringWheel = library.getObjectByName("TouringWheel") ?? null;
     if (touringWheel) for (const cached of carModels.values()) for (const roll of cached.rolls) {
       roll.clear(); roll.add(touringWheel.clone(true));
@@ -1531,6 +1550,7 @@ export function createGame(
     head.visible = cameraMode !== 3;
     car.visible = !online && !(driving && cameraMode === 3);
     weapon.position.y = cameraMode === 3 ? .29 : .055;
+    weapon.position.z = cameraMode === 3 ? -.58 : -.34;
     if (cameraMode === 3) {
       desiredCamera.set(position.x + forwardX * .04, driving ? 1.5 : 1.65, position.z + forwardZ * .04);
       lookAt.set(position.x + forwardX * 10, (driving ? 1.5 : 1.65) + Math.tan(aimPitch + recoil) * 10, position.z + forwardZ * 10);
@@ -1731,6 +1751,7 @@ export function createGame(
   }
   const validIndex = (index: number, length: number) => Number.isInteger(index) && index >= 0 && index < length;
   function command(action: GameCommand) {
+    if (action.type === "snapshot") { if (!disposed) emitStats(); return; }
     if (disposed) return;
     if (action.type === "room") {
       const previous = online;
@@ -1749,6 +1770,7 @@ export function createGame(
       const starting = !previous || previous.phase !== online.phase;
       if (starting || Math.hypot(avatar.position.x - self.x, avatar.position.z - self.z) > 1.5) avatar.position.set(self.x, 0, self.z);
       if (starting) { clearInput(); footSpeed = 0; reloadRemaining = 0; insideHome = null; interior.visible = false; missionIndex = -1; missionMarker.visible = false; }
+      if (starting && self.health > 0 && (!previous || online.phase === "active")) command({ type: "weapon", index: 0 });
       self.ammo.forEach((count, i) => { ammo[i] = count; });
       zoneWall.scale.set(online.zone.radius, 1, online.zone.radius);
       zoneWall.position.set(online.zone.x, 12, online.zone.z);
@@ -1757,7 +1779,7 @@ export function createGame(
       for (const remote of online.players) {
         if (remote.id === online.selfId) continue;
         let actor = remoteActors.get(remote.id);
-        if (!actor) { actor = avatar.clone(true); actor.name = "RemotePlayer"; scene.add(actor); remoteActors.set(remote.id, actor); actor.position.set(remote.x, 0, remote.z); }
+        if (!actor) { actor = avatar.clone(true); actor.name = "RemotePlayer"; const remoteHead = actor.getObjectByName("PlayerHead"); if (remoteHead) remoteHead.visible = true; scene.add(actor); remoteActors.set(remote.id, actor); actor.position.set(remote.x, 0, remote.z); }
         actor.visible = remote.health > 0;
         actor.userData.destination = new THREE.Vector3(remote.x, 0, remote.z);
         actor.userData.heading = remote.heading;
@@ -1832,6 +1854,7 @@ export function createGame(
           barrel.scale.x = barrel.scale.z = weaponIndex === 2 ? 0.045 : 0.032;
           barrel.position.z = -0.22 - barrel.scale.y / 2;
           muzzleTip.position.z = barrel.position.z - barrel.scale.y / 2 - 0.01;
+          showDetailedWeapon(weaponIndex);
           weapon.rotation.set(aimPitch + recoil, 0, 0);
           notify(`${WEAPONS[weaponIndex].name} equipped.`);
         }
@@ -2223,7 +2246,7 @@ export function createGame(
       preview.add(new THREE.HemisphereLight("#ecf4ff", "#545040", 2.2));
       const light = new THREE.DirectionalLight("#fff2dc", 4); light.position.set(4, 6, 3); preview.add(light);
       const rim = new THREE.DirectionalLight("#b0d8ff", 3); rim.position.set(-4, 3, -3); preview.add(rim);
-      const lens = new THREE.PerspectiveCamera(36, 16 / 9, .1, 40); lens.position.set(...eye); lens.lookAt(...center);
+      const lens = new THREE.PerspectiveCamera(36, 16 / 9, .1, 40); lens.position.set(...eye); lens.lookAt(...center); lens.zoom = center[1] > .5 ? 1.65 : 1.25; lens.updateProjectionMatrix();
       const target = new THREE.WebGLRenderTarget(640, 360);
       target.texture.colorSpace = THREE.SRGBColorSpace;
       const previous = renderer.getRenderTarget();
@@ -2246,6 +2269,8 @@ export function createGame(
     },
     getWeaponPreview(index: number) {
       if (!validIndex(index, WEAPONS.length) || disposed) return "";
+      const detailed = detailedWeapons.get(index);
+      if (detailed) return renderPreview(detailed.clone(true), [1.25, .55, .7], [0, .03, -.2]);
       const model = weapon.clone(true);
       model.getObjectByName("long")!.visible = index > 0 && index < 5;
       model.getObjectByName("scope")!.visible = index === 4;
